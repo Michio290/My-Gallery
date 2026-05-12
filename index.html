@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <!-- viewport-fit=cover untuk safe area iPhone (notch/home bar) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>My Love Gallery 🌹</title>
+
+  <!-- ══ PWA Meta Tags ══ -->
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#e8637a"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Love Gallery"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="msapplication-TileColor" content="#e8637a"/>
+  <meta name="msapplication-TileImage" content="icon-192.png"/>
+  <!-- ══ SEO / Share ══ -->
+  <meta name="description" content="Galeri foto pribadi yang indah dan aman 🌹"/>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <!-- ══ LOCK SCREEN ══ -->
+  <div id="lock-screen" class="lock-screen">
+    <div class="lock-bg-orbs">
+      <div class="orb orb1"></div>
+      <div class="orb orb2"></div>
+      <div class="orb orb3"></div>
+    </div>
+    <div class="lock-card">
+      <div class="lock-icon-wrap">
+        <div class="lock-rose" id="lock-rose-el">🌹</div>
+        <div class="lock-ring"></div>
+      </div>
+      <p class="lock-label">✦ Private Collection ✦</p>
+      <h1 class="lock-title">My Love Gallery</h1>
+      <p class="lock-sub">Masukkan PIN 8 digit untuk membuka</p>
+
+      <div class="pin-dots" id="pin-dots">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+      <p class="pin-error" id="pin-error"></p>
+
+      <div class="numpad">
+        <button class="numkey" onclick="pinPress('1')">1</button>
+        <button class="numkey" onclick="pinPress('2')">2</button>
+        <button class="numkey" onclick="pinPress('3')">3</button>
+        <button class="numkey" onclick="pinPress('4')">4</button>
+        <button class="numkey" onclick="pinPress('5')">5</button>
+        <button class="numkey" onclick="pinPress('6')">6</button>
+        <button class="numkey" onclick="pinPress('7')">7</button>
+        <button class="numkey" onclick="pinPress('8')">8</button>
+        <button class="numkey" onclick="pinPress('9')">9</button>
+        <button class="numkey ghost"></button>
+        <button class="numkey" onclick="pinPress('0')">0</button>
+        <button class="numkey del" onclick="pinDel()">⌫</button>
+      </div>
+      <p class="lock-hint">💕 Hanya untuk kamu</p>
+    </div>
+  </div>
+
+  <!-- ══ MAIN APP ══ -->
+  <div id="app" class="app hidden">
+    <div class="hearts-bg" id="hearts-bg"></div>
+
+    <!-- TOP NAV -->
+    <nav class="topnav">
+      <div class="nav-brand" id="nav-brand">
+        <span class="nav-rose" id="nav-rose-el">🌹</span>
+        <span class="nav-title" id="nav-title">Love Gallery</span>
+      </div>
+      <!-- SEARCH inline di navbar -->
+      <div class="nav-search hidden" id="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Cari foto..." oninput="doSearch(this.value)"/>
+        <button class="search-close" onclick="closeSearch()">✕</button>
+      </div>
+      <div class="nav-actions">
+        <button class="nav-btn" id="search-btn" onclick="openSearch()" title="Cari">🔍</button>
+        <button class="nav-btn" id="slideshow-btn" onclick="startSlideshow()" title="Slideshow">▶</button>
+        <div class="music-btn-wrap" id="music-btn-wrap">
+          <button class="nav-btn" id="music-btn" onclick="toggleMusicDropdown()" title="Musik">🎵</button>
+          <div class="music-dropdown hidden" id="music-dropdown">
+            <div class="mdd-art-row">
+              <div class="mdd-art" id="mdd-art">🎵</div>
+              <div class="mdd-info">
+                <div class="mdd-track" id="mdd-track">Tidak Ada Lagu</div>
+                <div class="mdd-sub" id="mdd-sub">Tambah lagu di ⚙️ Settings</div>
+              </div>
+            </div>
+            <div class="mdd-progress-bar" id="mdd-progress-bar" onclick="seekMusic(event)">
+              <div class="mdd-progress-fill" id="mdd-progress-fill"></div>
+            </div>
+            <div class="mdd-time-row">
+              <span id="mdd-current">0:00</span>
+              <span id="mdd-total">0:00</span>
+            </div>
+            <div class="mdd-controls">
+              <button class="mdd-btn" onclick="prevTrack()">⏮</button>
+              <button class="mdd-btn main" id="mdd-play-btn" onclick="toggleMusicPlay()">▶</button>
+              <button class="mdd-btn" onclick="nextTrack()">⏭</button>
+            </div>
+            <div class="mdd-playlist" id="mdd-playlist">
+              <div class="mdd-empty" id="mdd-empty">Belum ada lagu — tambah di ⚙️</div>
+            </div>
+          </div>
+        </div>
+        <button class="nav-btn" id="darkmode-btn" onclick="toggleDarkMode()" title="Dark Mode">🌙</button>
+        <button class="nav-btn" onclick="openSettings()" title="Pengaturan">⚙️</button>
+        <button class="nav-btn lock-btn" onclick="lockApp()" title="Kunci">🔒</button>
+        <div class="offline-badge hidden" id="offline-badge" title="Offline — galeri tetap bisa diakses">📴 Offline</div>
+        <button class="nav-btn hidden" id="pwa-install-btn" onclick="installPwa()" title="Install App">📲</button>
+      </div>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-orb"></div>
+      <p class="hero-sub">✦ Private Collection ✦</p>
+      <h1 class="hero-title" id="hero-title-text">My <em>Love</em> Gallery</h1>
+      <div class="hero-divider">
+        <div class="hero-line"></div>
+        <div class="hero-heart" id="hero-rose-el">🌹</div>
+        <div class="hero-line r"></div>
+      </div>
+      <p class="hero-quote" id="hero-quote">"Every photo of you is a moment I never want to forget."</p>
+
+      <!-- Anniversary Countdown -->
+      <div class="anniversary-bar" id="anniversary-bar">
+        <div class="ann-icon">💑</div>
+        <div class="ann-info">
+          <div class="ann-label">Bersama selama</div>
+          <div class="ann-count" id="ann-count">—</div>
+        </div>
+        <button class="ann-set-btn" onclick="openAnniversaryModal()">Atur Tanggal 📅</button>
+      </div>
+
+      <div class="upload-wrap">
+        <div class="drop-zone" id="drop-zone">
+          <div class="drop-icon-wrap">📷</div>
+          <p class="drop-title">Tambahkan Fotomu di Sini</p>
+          <p class="drop-sub">Seret &amp; lepas foto atau klik tombol di bawah</p>
+          <button class="btn-upload" onclick="document.getElementById('file-input').click()">🌸 Pilih Foto</button>
+          <input type="file" id="file-input" multiple accept="image/*" onchange="openAlbumPicker(this.files)" style="display:none"/>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat-item">
+          <div class="stat-num" id="s-total">0</div>
+          <div class="stat-label">Foto</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-num" id="s-fav">0</div>
+          <div class="stat-label">Favorit</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-num" id="s-date">—</div>
+          <div class="stat-label">Terakhir</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ FOLDER SECTION ══ -->
+    <section class="folder-section">
+      <div class="folder-section-header">
+        <p class="folder-section-label">✦ Album Spesial ✦</p>
+        <h2 class="folder-section-title">Koleksi <em>Kita</em></h2>
+      </div>
+      <div class="folder-row">
+
+        <div class="folder-outer" onclick="openFolder('game')">
+          <div class="folder-tab-top"></div>
+          <div class="folder-body">
+            <div class="folder-shine"></div>
+            <div class="folder-deco">🎮</div>
+            <div class="folder-icons-top"><span class="fi">♥</span><span class="fi">⚙</span></div>
+            <div class="folder-label">
+              <div class="folder-name">Main Bareng 🎮</div>
+              <div class="folder-count" id="fc-game">0 foto</div>
+            </div>
+            <div class="folder-side"></div>
+            <div class="folder-bot"></div>
+          </div>
+        </div>
+
+        <div class="folder-outer folder-peek-wrap" onclick="openFolder('her')">
+          <div class="folder-tab-top"></div>
+          <div class="folder-peek-card">
+            <div class="folder-peek-top">
+              <span class="folder-peek-date" id="folder-peek-date">—</span>
+              <span class="folder-peek-badge">💕 Favorit</span>
+              <span class="folder-peek-dots">···</span>
+            </div>
+            <div class="folder-peek-img" id="folder-peek-img"><span>🌹</span></div>
+            <div class="folder-peek-cap">foto dia yang paling cantik ✨</div>
+          </div>
+          <div class="folder-body">
+            <div class="folder-shine"></div>
+            <div class="folder-deco">🌹</div>
+            <div class="folder-icons-top"><span class="fi">♥</span><span class="fi">⚙</span></div>
+            <div class="folder-label">
+              <div class="folder-name">My Person 🌹</div>
+              <div class="folder-count" id="fc-her">0 foto</div>
+            </div>
+            <div class="folder-side"></div>
+            <div class="folder-bot"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══ FOLDER VIEWER ══ -->
+    <div class="folder-lb hidden" id="folder-lb" onclick="closeFolderLb(event)">
+      <div class="folder-lb-inner">
+        <div class="folder-lb-head">
+          <h3 class="folder-lb-title" id="folder-lb-title"></h3>
+          <button class="folder-lb-close" onclick="closeFolderLb()">✕</button>
+        </div>
+        <div class="folder-lb-upload">
+          <button class="btn-upload" onclick="document.getElementById('folder-file-input').click()">🌸 Tambah Foto</button>
+          <button class="btn-upload btn-sync-all" onclick="syncAllFolderToMain()">🔄 Sinkronkan ke Galeri</button>
+          <input type="file" id="folder-file-input" multiple accept="image/*" onchange="handleFolderFiles(this.files)" style="display:none"/>
+        </div>
+        <div class="folder-lb-grid" id="folder-lb-grid"></div>
+        <div class="folder-lb-empty hidden" id="folder-lb-empty">
+          <div style="font-size:36px;margin-bottom:8px">🌸</div>
+          <p>Belum ada foto — tambahkan sekarang!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- GALLERY -->
+    <section class="gallery-section">
+      <div class="section-header">
+        <h2 class="section-title">Koleksi <span>Kenangan</span></h2>
+        <div class="filter-tabs">
+          <div class="tab active" onclick="setFilter('all',this)">Semua</div>
+          <div class="tab" onclick="setFilter('recent',this)">🌟 Terbaru</div>
+          <div class="tab tab-special" onclick="openMoodboard()">🎨 Mood Board</div>
+          <div class="tab tab-special" onclick="openLoveLetter()">💌 Surat Cinta</div>
+          <div class="tab tab-special" onclick="openStats()">📊 Statistik</div>
+          <div class="tab tab-special" onclick="openCapsule()">💊 Kapsul</div>
+          <div class="tab tab-special" onclick="openTimeline()">📅 Momen</div>
+          <div class="tab tab-special" onclick="openScrapbook()">🎞️ Scrapbook</div>
+        </div>
+        <!-- TAG FILTER BAR -->
+        <div class="tag-filter-bar" id="tag-filter-bar"></div>
+      </div>
+
+      <!-- SELECT MODE TOOLBAR -->
+      <div class="select-toolbar hidden" id="select-toolbar">
+        <div class="select-toolbar-left">
+          <button class="sel-btn" onclick="toggleSelectAll()" id="select-all-btn">☑ Pilih Semua</button>
+          <span class="sel-count" id="sel-count">0 dipilih</span>
+        </div>
+        <div class="select-toolbar-right">
+          <button class="sel-btn sel-btn-danger" onclick="deleteSelected()" id="delete-selected-btn">🗑 Hapus</button>
+          <button class="sel-btn sel-btn-cancel" onclick="exitSelectMode()">✕ Batal</button>
+        </div>
+      </div>
+      <!-- ENTER SELECT MODE BUTTON -->
+      <div class="select-enter-wrap" id="select-enter-wrap">
+        <button class="btn-select-mode" onclick="enterSelectMode()">☑ Pilih Foto</button>
+      </div>
+
+      <div class="photo-grid" id="grid"></div>
+      <div class="empty" id="empty">
+        <div class="empty-icon">🌸</div>
+        <h3>Belum ada foto</h3>
+        <p>Upload foto pertama dan buat galeri<br>kenangan yang indah bersama ✨</p>
+      </div>
+    </section>
+  </div><!-- end #app -->
+
+  <!-- ══ SLIDESHOW ══ -->
+  <div class="slideshow-overlay hidden" id="slideshow-overlay">
+    <button class="ss-close" onclick="stopSlideshow()">✕</button>
+    <img id="ss-img" src="" alt=""/>
+    <div class="ss-info">
+      <p class="ss-caption" id="ss-caption"></p>
+      <div class="ss-progress" id="ss-progress"><div class="ss-bar" id="ss-bar"></div></div>
+    </div>
+    <div class="ss-dots" id="ss-dots"></div>
+  </div>
+
+  <!-- ══ LIGHTBOX ══ -->
+  <div class="lightbox hidden" id="lightbox" onclick="lbBgClick(event)">
+    <button class="lb-nav lb-prev" onclick="lbNav(-1);event.stopPropagation()">&#8592;</button>
+    <div class="lb-inner">
+      <button class="lb-close" onclick="closeLb()">✕</button>
+      <!-- Zoom hint -->
+      <div class="lb-zoom-hint hidden" id="lb-zoom-hint">🔍 Scroll/pinch untuk zoom · Drag untuk geser</div>
+      <!-- Zoom reset button -->
+      <button class="lb-zoom-reset hidden" id="lb-zoom-reset" onclick="lbResetZoom()">↺ Reset</button>
+      <div class="lb-img-wrap" id="lb-img-wrap">
+        <img id="lb-img" src="" alt="" class="lb-filtered"/>
+      </div>
+      <div class="lb-info">
+        <p class="lb-caption" id="lb-cap"></p>
+        <p class="lb-date" id="lb-date"></p>
+      </div>
+      <div class="lb-actions">
+        <button class="lb-action-btn" id="lb-fav-btn" onclick="lbToggleFav()">♥ Favorit</button>
+        <button class="lb-action-btn" onclick="lbEditCaption()">✏️ Caption</button>
+        <button class="lb-action-btn secret-btn" onclick="lbOpenSecretNote()">💌 Pesan Rahasia</button>
+        <button class="lb-action-btn" onclick="openPhotoTagEditor()">🏷 Tag</button>
+        <button class="lb-action-btn" onclick="toggleFilterPanel()">🎨 Filter</button>
+        <button class="lb-action-btn wa-btn" onclick="lbShareWA()">💬 Share WA</button>
+        <button class="lb-action-btn danger" onclick="lbDelete()">🗑 Hapus</button>
+      </div>
+      <!-- Filter Panel -->
+      <div class="filter-panel hidden" id="filter-panel">
+        <div class="filter-panel-title">✨ Filter Foto</div>
+        <div class="filter-options">
+          <button class="fopt active" onclick="applyFilter('none',this)">Normal</button>
+          <button class="fopt" onclick="applyFilter('vintage',this)">🎞 Vintage</button>
+          <button class="fopt" onclick="applyFilter('warm',this)">🌅 Warm</button>
+          <button class="fopt" onclick="applyFilter('cool',this)">❄️ Cool</button>
+          <button class="fopt" onclick="applyFilter('bw',this)">⬛ B&W</button>
+          <button class="fopt" onclick="applyFilter('dreamy',this)">🌸 Dreamy</button>
+          <button class="fopt" onclick="applyFilter('golden',this)">✨ Golden</button>
+        </div>
+      </div>
+    </div>
+    <button class="lb-nav lb-next" onclick="lbNav(1);event.stopPropagation()">&#8594;</button>
+  </div>
+
+  <!-- ══ SETTINGS PANEL ══ -->
+  <div class="settings-overlay hidden" id="settings-overlay" onclick="settingsBgClick(event)">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2>⚙️ Pengaturan</h2>
+        <button onclick="closeSettings()">✕</button>
+      </div>
+      <div class="settings-body">
+
+        <div class="setting-group">
+          <h3 class="setting-group-title">🔐 Keamanan</h3>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">Ubah PIN</p>
+              <p class="setting-desc">Ganti PIN 8 digit untuk membuka galeri</p>
+            </div>
+            <button class="btn-setting" onclick="openChangePin()">Ubah</button>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">Auto-Lock</p>
+              <p class="setting-desc">Kunci otomatis setelah tidak aktif</p>
+            </div>
+            <select id="autolock-select" class="setting-select" onchange="saveAutoLock()">
+              <option value="0">Nonaktif</option>
+              <option value="1">1 menit</option>
+              <option value="5" selected>5 menit</option>
+              <option value="15">15 menit</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3 class="setting-group-title">🎨 Personalisasi</h3>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">Ikon Galeri</p>
+              <p class="setting-desc">Ganti ikon bunga dengan foto atau emoji kamu</p>
+            </div>
+            <button class="btn-setting" onclick="openIconPicker();closeSettings()">Ganti Ikon</button>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">Nama Galeri</p>
+              <p class="setting-desc">Tampil di navbar dan halaman utama</p>
+            </div>
+            <input type="text" id="gallery-name-input" class="setting-input" placeholder="My Love Gallery" maxlength="30"/>
+          </div>
+          <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:8px">
+            <div class="setting-info">
+              <p class="setting-name">Kutipan Hero</p>
+              <p class="setting-desc">Kutipan indah di bawah judul</p>
+            </div>
+            <textarea id="quote-input" class="setting-textarea" placeholder="Tulis kutipan indah di sini..." maxlength="120"></textarea>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">Tema Warna</p>
+              <p class="setting-desc">Pilih warna utama galeri</p>
+            </div>
+            <div class="color-swatches" id="color-swatches">
+              <div class="swatch active" data-color="#e8637a" style="background:#e8637a" onclick="setTheme('#e8637a','#f4a0af',this)" title="Rose"></div>
+              <div class="swatch" data-color="#7c6fcd" style="background:#7c6fcd" onclick="setTheme('#7c6fcd','#b5aee6',this)" title="Lavender"></div>
+              <div class="swatch" data-color="#5a9e7c" style="background:#5a9e7c" onclick="setTheme('#5a9e7c','#9ecfb5',this)" title="Sage"></div>
+              <div class="swatch" data-color="#c9a84c" style="background:#c9a84c" onclick="setTheme('#c9a84c','#e5d08a',this)" title="Gold"></div>
+              <div class="swatch" data-color="#d46060" style="background:#d46060" onclick="setTheme('#d46060','#eda0a0',this)" title="Coral"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3 class="setting-group-title">🎵 Musik</h3>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">Tambah Lagu</p>
+              <p class="setting-desc">Upload file audio ke playlist</p>
+            </div>
+            <button class="btn-setting" onclick="document.getElementById('music-file-input').click()">+ Upload</button>
+            <input type="file" id="music-file-input" accept="audio/*" multiple style="display:none" onchange="addMusicFiles(this.files)"/>
+          </div>
+          <div class="setting-item" id="music-count-row">
+            <div class="setting-info">
+              <p class="setting-name">Playlist</p>
+              <p class="setting-desc" id="music-count-desc">0 lagu tersimpan</p>
+            </div>
+            <button class="btn-setting danger" onclick="clearAllTracks()">Hapus Semua</button>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3 class="setting-group-title">📁 Data</h3>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">Total Koleksi</p>
+              <p class="setting-desc" id="settings-total-desc">0 foto tersimpan</p>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">🏷 Kelola Tag</p>
+              <p class="setting-desc">Buat & atur kategori foto kamu</p>
+            </div>
+            <button class="btn-setting" onclick="openTagManager();closeSettings()">Kelola Tag</button>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">📦 Backup & Import</p>
+              <p class="setting-desc">Export data ke JSON atau import dari backup</p>
+            </div>
+            <button class="btn-setting" onclick="openBackupModal();closeSettings()">Backup</button>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">📲 Install Aplikasi</p>
+              <p class="setting-desc">Pasang di layar utama, bisa dipakai offline</p>
+            </div>
+            <button class="btn-setting" onclick="installPwa();closeSettings()">Install</button>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <p class="setting-name">Hapus Semua Foto</p>
+              <p class="setting-desc" style="color:#e86363">Permanen, tidak bisa dibatalkan</p>
+            </div>
+            <button class="btn-setting danger" onclick="clearAllPhotos()">Hapus</button>
+          </div>
+        </div>
+
+        <button class="btn-save-settings" onclick="saveSettings()">💾 Simpan Pengaturan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CHANGE PIN MODAL ══ -->
+  <div class="modal-overlay hidden" id="change-pin-modal">
+    <div class="modal-card">
+      <h3 class="modal-title">🔐 Ubah PIN</h3>
+      <p class="modal-sub">PIN harus tepat 8 digit angka</p>
+      <div class="pin-field-wrap">
+        <label>PIN Lama</label>
+        <input type="password" id="old-pin-input" class="pin-field" maxlength="8" placeholder="••••••••" inputmode="numeric"/>
+      </div>
+      <div class="pin-field-wrap">
+        <label>PIN Baru</label>
+        <input type="password" id="new-pin-input" class="pin-field" maxlength="8" placeholder="••••••••" inputmode="numeric"/>
+      </div>
+      <div class="pin-field-wrap">
+        <label>Konfirmasi PIN Baru</label>
+        <input type="password" id="confirm-pin-input" class="pin-field" maxlength="8" placeholder="••••••••" inputmode="numeric"/>
+      </div>
+      <p class="pin-modal-error" id="pin-modal-error"></p>
+      <div class="modal-actions">
+        <button class="btn-modal-cancel" onclick="closeChangePin()">Batal</button>
+        <button class="btn-modal-ok" onclick="submitChangePin()">Simpan PIN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CAPTION MODAL ══ -->
+  <div class="modal-overlay hidden" id="caption-modal">
+    <div class="modal-card">
+      <h3 class="modal-title">✏️ Edit Caption</h3>
+      <textarea id="caption-input" class="setting-textarea" placeholder="Tulis cerita di balik foto ini..." maxlength="100"></textarea>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn-modal-cancel" onclick="closeCaptionModal()">Batal</button>
+        <button class="btn-modal-ok" onclick="saveCaption()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SECRET NOTE MODAL ══ -->
+  <div class="modal-overlay hidden" id="secret-note-modal">
+    <div class="modal-card secret-note-card">
+      <div class="secret-note-header">
+        <span class="secret-envelope">💌</span>
+        <h3 class="modal-title">Pesan Rahasia</h3>
+        <p class="modal-sub">Hanya kamu yang bisa membaca ini</p>
+      </div>
+      <div class="secret-note-display hidden" id="secret-note-display">
+        <div class="secret-note-text" id="secret-note-text"></div>
+        <div class="secret-note-actions">
+          <button class="btn-modal-cancel" onclick="editSecretNote()">✏️ Edit</button>
+          <button class="btn-modal-cancel" onclick="closeSecretNote()">Tutup</button>
+        </div>
+      </div>
+      <div class="secret-note-edit" id="secret-note-edit">
+        <textarea id="secret-note-input" class="setting-textarea" placeholder="Tulis pesan rahasia di balik foto ini... 🤫" maxlength="200"></textarea>
+        <div class="modal-actions" style="margin-top:16px">
+          <button class="btn-modal-cancel" onclick="closeSecretNote()">Batal</button>
+          <button class="btn-modal-ok" onclick="saveSecretNote()">💾 Simpan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MOOD BOARD MODAL ══ -->
+  <div class="moodboard-overlay hidden" id="moodboard-overlay">
+    <div class="moodboard-header">
+      <h2 class="moodboard-title">🎨 Mood Board</h2>
+      <div class="moodboard-header-actions">
+        <button class="moodboard-btn" onclick="shuffleMoodboard()">🔀 Acak</button>
+        <button class="moodboard-btn" onclick="closeMoodboard()">✕ Tutup</button>
+      </div>
+    </div>
+    <div class="moodboard-canvas" id="moodboard-canvas"></div>
+    <p class="moodboard-hint">Seret foto untuk mengatur ulang posisinya ✨</p>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"><span id="toast-msg"></span></div>
+
+  <!-- ══ WELCOME ANIMATION OVERLAY ══ -->
+  <div class="welcome-overlay hidden" id="welcome-overlay">
+    <canvas id="welcome-canvas"></canvas>
+    <div class="welcome-content">
+      <div class="welcome-rose" id="welcome-rose">🌹</div>
+      <div class="welcome-lines" id="welcome-lines">
+        <p class="wline" id="wl1"></p>
+        <p class="wline wline-italic" id="wl2"></p>
+        <p class="wline wline-small" id="wl3"></p>
+      </div>
+      <div class="welcome-hearts" id="welcome-hearts"></div>
+    </div>
+  </div>
+
+  <!-- ══ ALBUM PICKER MODAL ══ -->
+  <div class="modal-overlay hidden" id="album-picker-modal">
+    <div class="modal-card album-picker-card">
+      <h3 class="modal-title">📂 Simpan ke Mana?</h3>
+      <p class="modal-sub">Pilih album untuk <b id="ap-count">0</b> foto</p>
+      <p class="modal-sub" style="font-size:11px;color:var(--rose);margin-top:-8px;">✓ Semua foto selalu masuk Koleksi Kenangan</p>
+
+      <div class="ap-options">
+        <div class="ap-option ap-always-on">
+          <div class="ap-opt-inner">
+            <span class="ap-opt-icon">🌹</span>
+            <div class="ap-opt-info">
+              <div class="ap-opt-name">Koleksi Kenangan</div>
+              <div class="ap-opt-desc">Galeri utama semua foto</div>
+            </div>
+            <span class="ap-check-mark ap-always-check">✓</span>
+          </div>
+        </div>
+
+        <label class="ap-option">
+          <input type="checkbox" id="ap-check-game"/>
+          <div class="ap-opt-inner">
+            <span class="ap-opt-icon">🎮</span>
+            <div class="ap-opt-info">
+              <div class="ap-opt-name">Main Bareng</div>
+              <div class="ap-opt-desc">Momen seru bareng dia</div>
+            </div>
+            <span class="ap-check-mark">✓</span>
+          </div>
+        </label>
+
+        <label class="ap-option">
+          <input type="checkbox" id="ap-check-her"/>
+          <div class="ap-opt-inner">
+            <span class="ap-opt-icon">🌸</span>
+            <div class="ap-opt-info">
+              <div class="ap-opt-name">My Person</div>
+              <div class="ap-opt-desc">Foto spesial dia</div>
+            </div>
+            <span class="ap-check-mark">✓</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="ap-preview" id="ap-preview"></div>
+
+      <div class="modal-actions">
+        <button class="btn-modal-cancel" onclick="closeAlbumPicker()">Batal</button>
+        <button class="btn-modal-ok" onclick="confirmAlbumPicker()">💾 Simpan Foto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ANNIVERSARY MODAL ══ -->
+  <div class="modal-overlay hidden" id="anniversary-modal">
+    <div class="modal-card">
+      <h3 class="modal-title">💑 Tanggal Spesial</h3>
+      <p class="modal-sub">Kapan kalian mulai bersama?</p>
+      <div class="pin-field-wrap">
+        <label>Tanggal Anniversary</label>
+        <input type="date" id="ann-date-input" class="pin-field" style="letter-spacing:normal"/>
+      </div>
+      <p class="pin-modal-error" id="ann-modal-error"></p>
+      <div class="modal-actions">
+        <button class="btn-modal-cancel" onclick="closeAnniversaryModal()">Batal</button>
+        <button class="btn-modal-ok" onclick="saveAnniversary()">💾 Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LOVE LETTER MODAL ══ -->
+  <div class="modal-overlay hidden" id="love-letter-modal">
+    <div class="modal-card love-letter-card">
+      <div class="ll-header">
+        <span class="ll-icon">💌</span>
+        <h3 class="modal-title">Surat Cinta</h3>
+        <p class="modal-sub">Kata-kata dari hati untuk dia</p>
+      </div>
+      <div class="ll-body" id="ll-body">
+        <div class="ll-loading" id="ll-loading">
+          <div class="ll-spinner"></div>
+          <p>Menulis kata-kata terbaik untukmu…</p>
+        </div>
+        <div class="ll-text hidden" id="ll-text"></div>
+      </div>
+      <div class="ll-actions">
+        <button class="btn-modal-cancel" onclick="regenerateLetter()">🔀 Baru Lagi</button>
+        <button class="btn-modal-ok" onclick="copyLetter()">📋 Salin</button>
+        <button class="btn-modal-cancel" onclick="closeLoveLetter()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Particle cursor canvas -->
+  <canvas id="cursor-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:9999;"></canvas>
+
+  <!-- Background music (silent audio loop via Web Audio API) -->
+  <audio id="bg-music" loop style="display:none">
+    <!-- Will be generated by Web Audio API -->
+  </audio>
+
+  <!-- ══ STATISTIK CINTA MODAL ══ -->
+  <div class="modal-overlay hidden" id="stats-modal">
+    <div class="stats-card">
+      <!-- Header banner dengan gradient -->
+      <div class="stats-header">
+        <button class="mp-close" onclick="closeStats()">✕</button>
+        <span class="stats-icon">📊</span>
+        <h3 class="modal-title">Statistik Cinta</h3>
+        <p class="modal-sub" id="stats-subtitle">Perjalanan kenangan kalian</p>
+      </div>
+
+      <!-- Kartu ringkasan 2x2 (overlap ke bawah header) -->
+      <div class="stats-summary">
+        <div class="stat-card">
+          <div class="stat-card-icon">📷</div>
+          <div class="stat-card-num" id="st-total">0</div>
+          <div class="stat-card-label">Total Foto</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon">❤️</div>
+          <div class="stat-card-num" id="st-fav">0</div>
+          <div class="stat-card-label">Favorit</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon">📁</div>
+          <div class="stat-card-num" id="st-albums">0</div>
+          <div class="stat-card-label">Di Album</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon">🌙</div>
+          <div class="stat-card-num" id="st-streak">0</div>
+          <div class="stat-card-label">Bulan Aktif</div>
+        </div>
+      </div>
+
+      <!-- Grafik foto per bulan -->
+      <div class="stats-section">
+        <div class="stats-section-title">Foto per Bulan</div>
+        <div class="chart-wrap">
+          <canvas id="chart-monthly" height="140"></canvas>
+        </div>
+      </div>
+
+      <!-- Hari terfavorit -->
+      <div class="stats-section">
+        <div class="stats-section-title">Hari Paling Banyak Foto</div>
+        <div class="chart-wrap weekday-bars" id="weekday-bars"></div>
+      </div>
+
+      <!-- Album breakdown -->
+      <div class="stats-section">
+        <div class="stats-section-title">Sebaran Album</div>
+        <div class="chart-wrap album-breakdown" id="album-breakdown"></div>
+      </div>
+
+      <!-- Foto pertama & terbaru -->
+      <div class="stats-section">
+        <div class="stats-section-title">Perjalanan Foto</div>
+        <div class="journey-row" id="journey-row"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ICON PICKER MODAL ══ -->
+  <div class="modal-overlay hidden" id="icon-picker-modal">
+    <div class="modal-card icon-picker-card">
+      <h3 class="modal-title">🖼 Ganti Ikon Galeri</h3>
+      <p class="modal-sub">Upload foto atau pilih emoji untuk ikon galeri kamu</p>
+      
+      <div class="icon-picker-preview-wrap">
+        <div class="icon-picker-preview" id="icon-picker-preview">🌹</div>
+        <div class="icon-picker-ring"></div>
+      </div>
+
+      <div class="icon-options">
+        <div class="icon-opt-section">
+          <p class="icon-opt-label">📸 Upload Foto Sendiri</p>
+          <button class="btn-upload icon-upload-btn" onclick="document.getElementById('icon-file-input').click()">
+            Pilih Foto / Gambar
+          </button>
+          <input type="file" id="icon-file-input" accept="image/*" style="display:none" onchange="handleIconFile(this)"/>
+        </div>
+
+        <div class="icon-opt-section">
+          <p class="icon-opt-label">💝 Pilih Emoji</p>
+          <div class="emoji-grid">
+            <button class="emoji-opt" onclick="selectEmoji('🌹')">🌹</button>
+            <button class="emoji-opt" onclick="selectEmoji('💕')">💕</button>
+            <button class="emoji-opt" onclick="selectEmoji('🌸')">🌸</button>
+            <button class="emoji-opt" onclick="selectEmoji('💌')">💌</button>
+            <button class="emoji-opt" onclick="selectEmoji('🌺')">🌺</button>
+            <button class="emoji-opt" onclick="selectEmoji('✨')">✨</button>
+            <button class="emoji-opt" onclick="selectEmoji('🌼')">🌼</button>
+            <button class="emoji-opt" onclick="selectEmoji('🦋')">🦋</button>
+            <button class="emoji-opt" onclick="selectEmoji('🍓')">🍓</button>
+            <button class="emoji-opt" onclick="selectEmoji('🌙')">🌙</button>
+            <button class="emoji-opt" onclick="selectEmoji('⭐')">⭐</button>
+            <button class="emoji-opt" onclick="selectEmoji('🎀')">🎀</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-modal-cancel" onclick="closeIconPicker()">Batal</button>
+        <button class="btn-modal-ok" onclick="saveIcon()">💾 Simpan Ikon</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MEMORY CAPSULE MODAL ══ -->
+  <div class="modal-overlay hidden" id="capsule-modal">
+    <div class="modal-card capsule-card">
+      <div class="capsule-header">
+        <span class="capsule-icon">💊</span>
+        <h3 class="modal-title">Kapsul Kenangan</h3>
+        <p class="modal-sub">Tulis pesan untuk dibuka di masa depan 💌</p>
+      </div>
+      <div class="capsule-body" id="capsule-body">
+        <div class="capsule-form" id="capsule-form">
+          <div class="pin-field-wrap">
+            <label>Tanggal Buka Kapsul</label>
+            <input type="date" id="capsule-date-input" class="pin-field" style="letter-spacing:normal"/>
+          </div>
+          <div class="pin-field-wrap">
+            <label>Pesan untuk masa depan</label>
+            <textarea id="capsule-msg-input" class="setting-textarea" placeholder="Hai sayang, kalau kamu baca ini di masa depan..." maxlength="500"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-modal-cancel" onclick="closeCapsule()">Batal</button>
+            <button class="btn-modal-ok" onclick="saveCapsule()">🔒 Simpan Kapsul</button>
+          </div>
+        </div>
+        <div class="capsule-locked hidden" id="capsule-locked">
+          <div class="capsule-lock-icon">🔒</div>
+          <p class="capsule-lock-title" id="capsule-lock-title">Kapsul Terkunci</p>
+          <p class="capsule-lock-date" id="capsule-lock-date"></p>
+          <p class="capsule-lock-countdown" id="capsule-lock-countdown"></p>
+          <button class="btn-modal-cancel" style="margin-top:16px" onclick="closeCapsule()">Tutup</button>
+          <button class="btn-modal-cancel" style="margin-top:8px;color:var(--rose)" onclick="deleteCapsule()">🗑 Hapus Kapsul</button>
+        </div>
+        <div class="capsule-open hidden" id="capsule-open">
+          <div class="capsule-open-icon">💌</div>
+          <p class="capsule-open-title">Kapsul Telah Terbuka!</p>
+          <div class="capsule-open-msg" id="capsule-open-msg"></div>
+          <button class="btn-modal-cancel" style="margin-top:16px" onclick="closeCapsule()">Tutup</button>
+          <button class="btn-modal-cancel" style="margin-top:8px" onclick="resetCapsule()">📝 Buat Kapsul Baru</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="supabase.js"></script>
+  <script src="db.js"></script>
+  <script src="script.js"></script>
+
+  <!-- ══ TIMELINE / MOMEN MODAL ══ -->
+  <div class="modal-overlay hidden" id="timeline-modal">
+    <div class="modal-card timeline-card">
+      <button class="mp-close" onclick="closeTimeline()">✕</button>
+      <div class="timeline-header">
+        <span class="timeline-icon">📅</span>
+        <h3 class="modal-title">Momen Kenangan</h3>
+        <p class="modal-sub">Perjalanan foto kita dari waktu ke waktu</p>
+      </div>
+      <div class="otd-banner hidden" id="otd-banner">
+        <div class="otd-left">
+          <span class="otd-badge">📅 Hari Ini, Setahun Lalu</span>
+          <p class="otd-caption" id="otd-caption"></p>
+        </div>
+        <div class="otd-thumbs" id="otd-thumbs"></div>
+      </div>
+      <div class="timeline-body" id="timeline-body"></div>
+      <div class="modal-actions" style="margin-top:8px">
+        <button class="btn-modal-cancel" onclick="closeTimeline()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="modal-overlay hidden" id="scrapbook-modal">
+    <div class="modal-card scrapbook-card">
+      <button class="mp-close" onclick="closeScrapbook()">✕</button>
+
+      <!-- Header gradient -->
+      <div class="scrapbook-header">
+        <span class="scrapbook-icon">🎞️</span>
+        <h3 class="modal-title">Scrapbook & Kolase</h3>
+        <p class="modal-sub">Pilih hingga 9 foto · 8 template · Stiker & caption</p>
+      </div>
+
+      <!-- Step 1: Pilih foto -->
+      <div class="scrap-step" id="scrap-step-1">
+        <p class="scrap-step-label">① Pilih foto (2–9 foto)</p>
+        <div class="scrap-pick-grid" id="scrap-pick-grid"></div>
+        <span class="scrap-sel-count" id="scrap-sel-count">Belum ada foto dipilih</span>
+      </div>
+
+      <!-- Step 2: Pilih layout -->
+      <div class="scrap-step" id="scrap-step-2">
+        <p class="scrap-step-label">② Pilih layout</p>
+        <div class="scrap-tpl-row">
+          <button class="scrap-tpl-btn active" id="tpl-mosaic"   onclick="selectTpl('mosaic',this)">
+            <div class="tpl-preview tpl-mosaic-prev"></div>
+            <span>Mosaic</span>
+          </button>
+          <button class="scrap-tpl-btn" id="tpl-polar" onclick="selectTpl('polaroid',this)">
+            <div class="tpl-preview tpl-polar-prev"></div>
+            <span>Polaroid</span>
+          </button>
+          <button class="scrap-tpl-btn" id="tpl-magazine" onclick="selectTpl('magazine',this)">
+            <div class="tpl-preview tpl-magazine-prev"></div>
+            <span>Magazine</span>
+          </button>
+          <button class="scrap-tpl-btn" id="tpl-heart" onclick="selectTpl('heart',this)">
+            <div class="tpl-preview tpl-heart-prev"></div>
+            <span>Heart</span>
+          </button>
+          <button class="scrap-tpl-btn" id="tpl-strip" onclick="selectTpl('strip',this)">
+            <div class="tpl-preview tpl-strip-prev"></div>
+            <span>Film</span>
+          </button>
+          <button class="scrap-tpl-btn" id="tpl-washi" onclick="selectTpl('washi',this)">
+            <div class="tpl-preview tpl-washi-prev"></div>
+            <span>Washi</span>
+          </button>
+          <button class="scrap-tpl-btn" id="tpl-vintage" onclick="selectTpl('vintage',this)">
+            <div class="tpl-preview tpl-vintage-prev"></div>
+            <span>Vintage</span>
+          </button>
+          <button class="scrap-tpl-btn" id="tpl-bloom" onclick="selectTpl('bloom',this)">
+            <div class="tpl-preview tpl-bloom-prev"></div>
+            <span>Bloom</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Stiker -->
+      <div class="scrap-step scrap-sticker-section" id="scrap-step-3">
+        <p class="scrap-step-label">③ Tambah stiker (opsional)</p>
+
+        <!-- Tab: Emoji bawaan / Custom -->
+        <div class="scrap-sticker-tabs">
+          <button class="scrap-sticker-tab active" id="sticker-tab-emoji" onclick="switchStickerTab('emoji',this)">🎀 Emoji</button>
+          <button class="scrap-sticker-tab" id="sticker-tab-custom" onclick="switchStickerTab('custom',this)">📁 Upload Sendiri</button>
+        </div>
+
+        <!-- Panel: Emoji bawaan -->
+        <div id="sticker-panel-emoji">
+          <div class="scrap-sticker-row">
+            <button class="scrap-sticker-btn" onclick="selectSticker('💕',this)" title="Hati ganda">💕</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('🌸',this)" title="Sakura">🌸</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('✨',this)" title="Bintang">✨</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('🦋',this)" title="Kupu-kupu">🦋</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('🌹',this)" title="Mawar">🌹</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('🎀',this)" title="Pita">🎀</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('⭐',this)" title="Bintang emas">⭐</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('🍓',this)" title="Stroberi">🍓</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('🌙',this)" title="Bulan">🌙</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('💫',this)" title="Kilau">💫</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('🎶',this)" title="Musik">🎶</button>
+            <button class="scrap-sticker-btn" onclick="selectSticker('🐱',this)" title="Kucing">🐱</button>
+          </div>
+        </div>
+
+        <!-- Panel: Upload custom -->
+        <div id="sticker-panel-custom" class="hidden">
+          <!-- Toleransi bg removal -->
+          <div class="bg-remove-wrap">
+            <span class="bg-remove-label">🪄 Hapus Background Otomatis</span>
+            <div class="bg-remove-tol-row">
+              <span style="font-size:11px;color:var(--muted)">Halus</span>
+              <input type="range" id="bg-tol-slider" min="10" max="100" step="5" value="40"
+                     class="sticker-size-slider" style="flex:1"
+                     oninput="document.getElementById('bg-tol-val').textContent=this.value; window.BG_TOLERANCE=parseInt(this.value)"/>
+              <span style="font-size:11px;color:var(--muted)">Agresif</span>
+              <span id="bg-tol-val" class="sticker-size-label">40</span>
+            </div>
+          </div>
+          <!-- Tombol upload -->
+          <label class="scrap-custom-upload-btn" for="custom-sticker-input">
+            <span>📎 Pilih Gambar</span>
+            <small>PNG · JPG · WebP · GIF · maks 4MB · bg dihapus otomatis</small>
+          </label>
+          <input type="file" id="custom-sticker-input" accept="image/*"
+                 style="display:none" onchange="loadCustomSticker(this)"/>
+
+          <!-- Grid stiker custom yang sudah diupload -->
+          <div class="scrap-custom-grid" id="scrap-custom-grid">
+            <p class="scrap-custom-empty">Belum ada stiker custom 🌸<br><small>Upload gambar favoritmu!</small></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Caption / Quote -->
+      <div class="scrap-step scrap-caption-section" id="scrap-step-4">
+        <p class="scrap-step-label">④ Tulis caption / quote (opsional)</p>
+        <input
+          type="text"
+          id="scrap-caption-input"
+          class="scrap-caption-input"
+          placeholder="contoh: Our forever moments 💕"
+          maxlength="60"
+          oninput="onScrapCaptionChange(this.value)"
+        />
+      </div>
+
+      <!-- Step 5: Preview -->
+      <div class="scrap-step" id="scrap-step-5">
+        <p class="scrap-step-label">⑤ Preview & Download</p>
+        <div class="scrap-canvas-wrap" id="scrap-canvas-wrap">
+          <canvas id="scrap-canvas" width="1080" height="1080"></canvas>
+          <!-- Stiker draggable overlay -->
+          <div id="scrap-sticker-overlay" class="scrap-sticker-overlay hidden">
+            <!-- stiker dirender dinamis oleh renderStickerOverlays() -->
+            <div class="sticker-drag-hint">Drag untuk pindahkan ✦ klik ✕ untuk hapus</div>
+          </div>
+        </div>
+        <p class="scrap-photo-drag-hint hidden" id="scrap-photo-drag-hint">✋ Geser foto untuk mengatur posisi</p>
+      </div>
+
+      <!-- Actions -->
+      <div class="scrap-actions">
+        <button class="btn-modal-cancel" onclick="closeScrapbook()">Tutup</button>
+        <button class="btn-modal-ok" id="scrap-render-btn" onclick="renderScrapbook()" disabled style="opacity:0.5">
+          🎨 Buat Kolase
+        </button>
+        <button class="btn-modal-ok scrap-dl-btn hidden" id="scrap-dl-btn" onclick="downloadScrapbook()">
+          ⬇️ Download PNG
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ PWA Manifest link ══ -->
+  <!-- (manifest.json opsional, bisa ditambahkan untuk full PWA) -->
+  <!-- ══ TAG MANAGER MODAL ══ -->
+  <div class="modal-overlay hidden" id="tag-manager-modal">
+    <div class="modal-card tag-manager-card">
+      <button class="mp-close" onclick="closeTagManager()">✕</button>
+      <h3 class="modal-title">🏷 Kelola Tag / Kategori</h3>
+      <p class="modal-sub">Tag fleksibel untuk mengorganisir foto kamu</p>
+
+      <!-- Preset tags -->
+      <div class="tag-presets-section">
+        <p class="tag-section-label">⚡ Tambah Cepat</p>
+        <div class="tag-presets-grid" id="tag-presets-grid">
+          <button class="tag-preset-btn" onclick="addPresetTag(0)">💕 Romantis</button>
+          <button class="tag-preset-btn" onclick="addPresetTag(1)">🏔 Petualangan</button>
+          <button class="tag-preset-btn" onclick="addPresetTag(2)">🍜 Makanan</button>
+          <button class="tag-preset-btn" onclick="addPresetTag(3)">🤳 Selfie</button>
+          <button class="tag-preset-btn" onclick="addPresetTag(4)">🎮 Game</button>
+          <button class="tag-preset-btn" onclick="addPresetTag(5)">🎂 Ulang Tahun</button>
+          <button class="tag-preset-btn" onclick="addPresetTag(6)">✈️ Liburan</button>
+          <button class="tag-preset-btn" onclick="addPresetTag(7)">👨‍👩‍👧 Keluarga</button>
+        </div>
+      </div>
+
+      <!-- Tag list -->
+      <div class="tag-section-label">📋 Tag Saya</div>
+      <div class="tag-list" id="tag-list"></div>
+
+      <!-- Add new tag -->
+      <div class="tag-add-form">
+        <p class="tag-section-label">➕ Buat Tag Baru</p>
+        <div class="tag-add-row">
+          <input type="text" id="new-tag-name"  class="tag-name-input" placeholder="Nama tag..." maxlength="20"/>
+          <input type="text" id="new-tag-emoji" class="tag-emoji-input" placeholder="🏷" maxlength="4"/>
+          <input type="color" id="new-tag-color" class="tag-color-input" value="#e8637a"/>
+          <button class="btn-modal-ok tag-add-btn" onclick="addTagFromForm()">+ Tambah</button>
+        </div>
+      </div>
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="btn-modal-cancel" onclick="closeTagManager()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PHOTO TAG EDITOR MODAL ══ -->
+  <div class="modal-overlay hidden" id="photo-tag-modal">
+    <div class="modal-card photo-tag-card">
+      <h3 class="modal-title">🏷 Tag Foto Ini</h3>
+      <p class="modal-sub">Pilih kategori untuk foto ini</p>
+      <div class="photo-tag-picker" id="photo-tag-picker"></div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn-modal-cancel" onclick="closePhotoTagEditor()">Batal</button>
+        <button class="btn-modal-ok" onclick="savePhotoTags()">💾 Simpan Tag</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ BACKUP / EXPORT MODAL ══ -->
+  <div class="modal-overlay hidden" id="backup-modal">
+    <div class="modal-card backup-card">
+      <button class="mp-close" onclick="closeBackupModal()">✕</button>
+      <div class="backup-header">
+        <span class="backup-icon">📦</span>
+        <h3 class="modal-title">Backup & Restore</h3>
+        <p class="modal-sub backup-info" id="backup-info">Memuat info...</p>
+      </div>
+
+      <div class="backup-section">
+        <div class="backup-section-title">📤 Export / Download</div>
+        <div class="backup-option" onclick="doExportWithPhotos()">
+          <div class="backup-opt-icon">🖼</div>
+          <div class="backup-opt-info">
+            <div class="backup-opt-name">Backup Lengkap</div>
+            <div class="backup-opt-desc">Semua foto (base64) + tag + pengaturan. File bisa besar.</div>
+          </div>
+          <button class="backup-opt-btn">Download</button>
+        </div>
+        <div class="backup-option" onclick="doExportMetaOnly()">
+          <div class="backup-opt-icon">📋</div>
+          <div class="backup-opt-info">
+            <div class="backup-opt-name">Backup Metadata</div>
+            <div class="backup-opt-desc">Tag, caption, favorit, pengaturan — tanpa gambar.</div>
+          </div>
+          <button class="backup-opt-btn">Download</button>
+        </div>
+      </div>
+
+      <div class="backup-section">
+        <div class="backup-section-title">📥 Import / Restore</div>
+        <div class="backup-option">
+          <div class="backup-opt-icon">📂</div>
+          <div class="backup-opt-info">
+            <div class="backup-opt-name">Import dari File</div>
+            <div class="backup-opt-desc">⚠️ Data saat ini akan ditimpa oleh backup yang diimport.</div>
+          </div>
+          <label class="backup-opt-btn" style="cursor:pointer">
+            Pilih File
+            <input type="file" accept=".json" style="display:none" onchange="doImportBackup(this)"/>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:8px">
+        <button class="btn-modal-cancel" onclick="closeBackupModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
