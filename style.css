@@ -4689,23 +4689,23 @@ body.dark-mode .scrap-sel-count {
   /* ─────────────────────────────
      MUSIC DROPDOWN
   ───────────────────────────── */
-  /* Music dropdown — card kecil di bawah icon, tidak overflow */
+  /* Music dropdown — card kecil muncul di bawah icon musik */
   .music-btn-wrap {
-    position: relative;
+    position: relative !important;
   }
   .music-dropdown {
     position: absolute !important;
-    top: calc(100% + 6px) !important;
+    top: 44px !important;
     right: 0 !important;
     left: auto !important;
     bottom: auto !important;
     width: 240px !important;
     max-width: calc(100vw - 16px) !important;
-    max-height: 60vh !important;
+    max-height: 55vh !important;
     overflow-y: auto !important;
     border-radius: 16px !important;
-    transform-origin: top right !important;
     z-index: 9999 !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18) !important;
   }
 
   /* ─────────────────────────────
