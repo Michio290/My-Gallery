@@ -5160,12 +5160,28 @@ async function initCloudSync() {
     await sbEnsureAuth();
     cloudSyncEnabled = true;
 
-    // Restore semua data dari cloud jika lokal kosong (perangkat baru)
-    if (photos.length === 0) {
+    // Cek apakah foto lokal punya src base64 atau tidak
+    const missingLocalSrc = photos.some(p => !p.src && p.cloudUrl);
+    const needsCloudRestore = photos.length === 0 || missingLocalSrc;
+
+    if (needsCloudRestore) {
       const cloudPhotos = await sbLoadPhotos();
       if (cloudPhotos && cloudPhotos.length > 0) {
         console.log('[Cloud] Restore foto:', cloudPhotos.length);
-        photos = cloudPhotos;
+        // Merge: pertahankan src lokal jika ada, pakai cloudUrl dari cloud
+        if (photos.length > 0 && missingLocalSrc) {
+          cloudPhotos.forEach(cp => {
+            const local = photos.find(p => String(p.id) === String(cp.id));
+            if (local) {
+              // Update cloudUrl dari cloud, pertahankan src lokal jika ada
+              local.cloudUrl = cp.cloudUrl || local.cloudUrl;
+            } else {
+              photos.push(cp);
+            }
+          });
+        } else {
+          photos = cloudPhotos;
+        }
         await dbSavePhotos(photos);
 
         try {
@@ -5191,7 +5207,8 @@ async function initCloudSync() {
 
         render();
         updateStats();
-        toast('☁️ Data berhasil dipulihkan dari cloud!');
+        updateFolderCounts();
+        if (photos.length === 0) toast('☁️ Data berhasil dipulihkan dari cloud!');
       }
     }
 
