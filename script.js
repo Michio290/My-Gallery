@@ -71,7 +71,23 @@ function genId() {
   // Migrasi PIN plain-text lama → hash (sekali saja)
   await migratePinToHash();
 
-  // Jika belum ada PIN sama sekali (first run), tampilkan setup PIN
+  // Jika belum ada PIN (perangkat baru), coba ambil dari cloud dulu
+  if (!settings.pin) {
+    try {
+      await sbEnsureAuth();
+      const cloudSettings = await sbLoadSettings();
+      if (cloudSettings?.pin) {
+        // Ditemukan PIN hash di cloud — pakai langsung, tidak perlu buat PIN baru
+        settings = Object.assign({}, DEFAULT_SETTINGS, cloudSettings);
+        await dbSaveConfig('settings', settings);
+        console.log('[Cloud] PIN berhasil dipulihkan dari cloud ✅');
+      }
+    } catch(e) {
+      console.warn('[Cloud] Gagal ambil PIN dari cloud:', e.message);
+    }
+  }
+
+  // Jika masih tidak ada PIN (benar-benar pertama kali, belum pernah buat PIN di mana pun)
   if (!settings.pin) {
     showFirstRunPinSetup();
     return; // jangan lanjut init sampai PIN dibuat
@@ -244,6 +260,14 @@ async function confirmFirstRunPin() {
   if (p1 !== p2)             { errEl.textContent = '❌ PIN tidak cocok, coba lagi'; return; }
   settings.pin = await hashPin(p1);
   saveCfg();
+  // Langsung sync PIN ke cloud agar perangkat lain bisa pakai PIN yang sama
+  try {
+    await sbEnsureAuth();
+    await sbSaveSettings(settings);
+    console.log('[Cloud] PIN berhasil disync ke cloud ✅');
+  } catch(e) {
+    console.warn('[Cloud] Gagal sync PIN ke cloud:', e.message);
+  }
   // Lanjutkan inisialisasi normal
   await _continueInit();
 }

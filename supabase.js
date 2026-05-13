@@ -210,8 +210,8 @@ async function sbLoadPhotos() {
 ═══════════════════════════════════════════════════ */
 
 async function sbSaveSettings(settings) {
-  const { pin: _omit, ...safe } = settings; // jangan simpan PIN hash ke cloud
-  await sbSaveMeta('settings', safe);
+  // PIN hash (bukan PIN asli) aman disimpan ke cloud untuk sinkronisasi antar perangkat
+  await sbSaveMeta('settings', settings);
 }
 async function sbLoadSettings() { return sbLoadMeta('settings'); }
 
