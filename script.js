@@ -71,16 +71,14 @@ function genId() {
   // Migrasi PIN plain-text lama → hash (sekali saja)
   await migratePinToHash();
 
-  // Jika sudah ada PIN di lokal, set identitas cloud langsung
+  // Jika sudah ada PIN, set UID cloud dari PIN hash
   if (settings.pin) {
     sbSetUserFromPin(settings.pin);
     await _continueInit();
     return;
   }
 
-  // Belum ada PIN lokal — ini perangkat baru
-  // Coba ambil PIN dari cloud menggunakan session Supabase sementara
-  // Tidak bisa tanpa PIN → tampilkan setup
+  // Belum ada PIN — perangkat baru, tampilkan setup
   showFirstRunPinSetup();
 })();
 
@@ -117,8 +115,8 @@ async function _continueInit() {
     }
   } catch(e) { /* ignore */ }
 
-  // ── CLOUD SYNC: set identitas dari PIN, lalu init ──
-  if (settings.pin) sbSetUserFromPin(settings.pin);
+  // ── CLOUD SYNC: pastikan UID sudah di-set, lalu init ──
+  if (settings.pin && typeof sbSetUserFromPin === 'function') sbSetUserFromPin(settings.pin);
   initCloudSync().catch(e => console.warn('[Cloud] Init gagal:', e));
 }
 
@@ -249,7 +247,7 @@ async function confirmFirstRunPin() {
   if (p1 !== p2)             { errEl.textContent = '❌ PIN tidak cocok, coba lagi'; return; }
   settings.pin = await hashPin(p1);
   saveCfg();
-  // Set identitas cloud dari PIN baru
+  // Set UID cloud dari PIN baru
   sbSetUserFromPin(settings.pin);
   // Lanjutkan inisialisasi normal
   await _continueInit();
@@ -5156,47 +5154,42 @@ async function downloadScrapbook() {
 
 async function initCloudSync() {
   try {
-    await sbEnsureAuth(); // cek uid sudah di-set
+    await sbEnsureAuth();
     cloudSyncEnabled = true;
 
-    // Restore semua data dari cloud jika lokal kosong (perangkat baru / fresh install)
-    const localEmpty = photos.length === 0;
-    const cloudPhotos = await sbLoadPhotos();
+    // Restore semua data dari cloud jika lokal kosong (perangkat baru)
+    if (photos.length === 0) {
+      const cloudPhotos = await sbLoadPhotos();
+      if (cloudPhotos && cloudPhotos.length > 0) {
+        console.log('[Cloud] Restore foto:', cloudPhotos.length);
+        photos = cloudPhotos;
+        await dbSavePhotos(photos);
 
-    if (cloudPhotos && cloudPhotos.length > 0 && localEmpty) {
-      console.log('[Cloud] Restore dari cloud:', cloudPhotos.length, 'foto');
+        try {
+          const cf = await sbLoadFolders();
+          if (cf) { folderPhotos = cf; await dbSaveFolders(folderPhotos); }
+        } catch(e2) {}
 
-      // Restore foto
-      photos = cloudPhotos;
-      await dbSavePhotos(photos);
+        try {
+          const ct = await sbLoadTags();
+          if (ct?.length) { allTags = ct; await dbSaveTags(allTags); }
+        } catch(e2) {}
 
-      // Restore folder
-      try {
-        const cf = await sbLoadFolders();
-        if (cf) { folderPhotos = cf; await dbSaveFolders(folderPhotos); }
-      } catch(e2) { console.warn('[Cloud] Restore folder gagal:', e2.message); }
+        try {
+          const cs = await sbLoadSettings();
+          if (cs) {
+            const localPin = settings.pin;
+            settings = Object.assign({}, DEFAULT_SETTINGS, cs, { pin: localPin });
+            await dbSaveConfig('settings', settings);
+            applyTheme(settings.theme, settings.themeLight);
+            applySettingsToUI();
+          }
+        } catch(e2) {}
 
-      // Restore tags
-      try {
-        const ct = await sbLoadTags();
-        if (ct?.length) { allTags = ct; await dbSaveTags(allTags); }
-      } catch(e2) { console.warn('[Cloud] Restore tags gagal:', e2.message); }
-
-      // Restore settings (pertahankan PIN lokal)
-      try {
-        const cs = await sbLoadSettings();
-        if (cs) {
-          const localPin = settings.pin;
-          settings = Object.assign({}, DEFAULT_SETTINGS, cs, { pin: localPin });
-          await dbSaveConfig('settings', settings);
-          applyTheme(settings.theme, settings.themeLight);
-          applySettingsToUI();
-        }
-      } catch(e2) { console.warn('[Cloud] Restore settings gagal:', e2.message); }
-
-      render();
-      updateStats();
-      toast('☁️ Data berhasil dipulihkan dari cloud!');
+        render();
+        updateStats();
+        toast('☁️ Data berhasil dipulihkan dari cloud!');
+      }
     }
 
     showCloudBadge('✅ Cloud aktif');
@@ -5238,30 +5231,58 @@ async function cloudSync() {
 }
 
 async function manualCloudSync() {
+  if (!cloudSyncEnabled) {
+    toast('⚠️ Cloud belum aktif. Tunggu sebentar atau refresh halaman.');
+    return;
+  }
   const info = document.getElementById('cloud-sync-info');
-  if (info) info.textContent = '⏳ Menyinkronkan...';
+  if (info) info.textContent = `⏳ Mengupload ${photos.length} foto...`;
   try {
+    showCloudBadge('☁️ Mengupload...');
     await sbFullSync({ photos, settings, tags: allTags, folderPhotos });
-    toast('✅ Sync ke cloud berhasil!');
+    toast(`✅ ${photos.length} foto berhasil di-upload ke cloud!`);
     if (info) info.textContent = `Terakhir sync: ${new Date().toLocaleTimeString('id')}`;
+    showCloudBadge('✅ Tersimpan');
+    setTimeout(() => showCloudBadge('☁️ Cloud aktif'), 3000);
   } catch(e) {
     toast('❌ Sync gagal: ' + e.message);
-    if (info) info.textContent = 'Sync gagal — periksa koneksi internet.';
+    console.error('[Cloud] Sync error:', e);
+    if (info) info.textContent = 'Gagal — cek console untuk detail.';
+    showCloudBadge('⚠️ Gagal sync');
   }
 }
 
 async function manualCloudRestore() {
-  if (!confirm('Restore data dari cloud? Data lokal akan ditimpa.')) return;
+  if (!cloudSyncEnabled) {
+    toast('⚠️ Cloud belum aktif. Tunggu sebentar atau refresh halaman.');
+    return;
+  }
+  if (!confirm('Download semua data dari cloud? Data lokal akan ditimpa.')) return;
   try {
+    showCloudBadge('☁️ Mendownload...');
+    toast('⏳ Mengambil data dari cloud...');
     const data = await sbFullRestore();
-    if (data.photos?.length)  { photos = data.photos; await dbSavePhotos(photos); }
-    if (data.settings)        { settings = { ...settings, ...data.settings }; await dbSaveConfig('settings', settings); }
+    if (data.photos?.length)  {
+      photos = data.photos;
+      await dbSavePhotos(photos);
+    }
+    if (data.settings) {
+      const localPin = settings.pin;
+      settings = Object.assign({}, DEFAULT_SETTINGS, data.settings, { pin: localPin });
+      await dbSaveConfig('settings', settings);
+      applyTheme(settings.theme, settings.themeLight);
+      applySettingsToUI();
+    }
     if (data.tags?.length)    { allTags = data.tags; await dbSaveTags(allTags); }
     if (data.folderPhotos)    { folderPhotos = data.folderPhotos; await dbSaveFolders(folderPhotos); }
     render();
     updateStats();
-    toast('☁️ Restore berhasil!');
+    updateFolderCounts();
+    showCloudBadge('✅ Cloud aktif');
+    toast(`☁️ Restore berhasil! ${photos.length} foto dimuat.`);
   } catch(e) {
     toast('❌ Restore gagal: ' + e.message);
+    console.error('[Cloud] Restore error:', e);
+    showCloudBadge('⚠️ Gagal');
   }
 }

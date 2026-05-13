@@ -1,9 +1,7 @@
 /* ═══════════════════════════════════════════════════
    LOVE GALLERY — supabase.js  v3
-   
-   ✅ FIXED: Identitas = PIN hash (sama di semua perangkat)
-   ✅ FIXED: Tidak pakai anonymous session
-   ✅ FIXED: PIN hash disimpan ke cloud untuk sync antar HP
+   ✅ Identitas = PIN hash (sama di semua perangkat)
+   ✅ Tidak pakai anonymous session
 ═══════════════════════════════════════════════════ */
 
 const SUPABASE_URL = 'https://kwafswyrxejfckpdpgbq.supabase.co';
@@ -12,40 +10,25 @@ const BUCKET       = 'love-gallery';
 
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* ═══════════════════════════════════════════════════
-   USER IDENTITY — dari PIN hash
-   
-   PIN hash (SHA-256) = 64 karakter hex
-   uid = 16 karakter pertama → folder unik di Supabase
-   Sama di semua perangkat selama PIN sama.
-═══════════════════════════════════════════════════ */
-
+/* ── User identity dari PIN hash ── */
 let _uid = null;
 
-/**
- * Dipanggil dari script.js setelah PIN tersedia.
- * @param {string} pinHash - SHA-256 hex (64 char)
- */
 function sbSetUserFromPin(pinHash) {
   _uid = 'u_' + pinHash.slice(0, 16);
-  console.log('[Supabase] UID set:', _uid);
+  console.log('[Supabase] UID:', _uid);
 }
 
 function sbUserId() {
-  if (!_uid) throw new Error('[Supabase] UID belum diset. Panggil sbSetUserFromPin() dulu.');
+  if (!_uid) throw new Error('[Supabase] Panggil sbSetUserFromPin() dulu!');
   return _uid;
 }
 
-/** Dummy auth check — dulu pakai anonymous session */
 async function sbEnsureAuth() {
-  if (!_uid) throw new Error('[Supabase] Panggil sbSetUserFromPin() sebelum sync.');
+  if (!_uid) throw new Error('[Supabase] UID belum diset.');
   return { id: _uid };
 }
 
-/* ═══════════════════════════════════════════════════
-   HELPERS
-═══════════════════════════════════════════════════ */
-
+/* ── Helpers ── */
 function dataUrlToBlob(dataUrl) {
   const [header, b64] = dataUrl.split(',');
   const mime = header.match(/:(.*?);/)[1];
@@ -63,17 +46,12 @@ function uniqueFilename(prefix = 'photo') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
 }
 
-/* ═══════════════════════════════════════════════════
-   STORAGE — METADATA JSON
-   Path: {uid}/meta/{name}.json
-═══════════════════════════════════════════════════ */
-
+/* ── Storage: Meta JSON ── */
 async function sbSaveMeta(name, data) {
   const path = `${sbUserId()}/meta/${name}.json`;
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
   const { error } = await _supabase.storage
-    .from(BUCKET)
-    .upload(path, blob, { contentType: 'application/json', upsert: true });
+    .from(BUCKET).upload(path, blob, { contentType: 'application/json', upsert: true });
   if (error) throw new Error(`Simpan meta "${name}" gagal: ${error.message}`);
 }
 
@@ -87,19 +65,14 @@ async function sbLoadMeta(name) {
   return JSON.parse(await data.text());
 }
 
-/* ═══════════════════════════════════════════════════
-   STORAGE — FOTO
-   Path: {uid}/photos/{id}.{ext}
-═══════════════════════════════════════════════════ */
-
+/* ── Storage: Foto ── */
 async function sbUploadPhoto(dataUrl, filename = null) {
   const blob = dataUrlToBlob(dataUrl);
   const ext  = mimeToExt(blob.type);
   const name = filename || uniqueFilename('photo');
   const path = `${sbUserId()}/photos/${name}.${ext}`;
   const { error } = await _supabase.storage
-    .from(BUCKET)
-    .upload(path, blob, { contentType: blob.type, upsert: true });
+    .from(BUCKET).upload(path, blob, { contentType: blob.type, upsert: true });
   if (error) throw new Error('Upload foto gagal: ' + error.message);
   const { data } = _supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
@@ -116,15 +89,11 @@ async function sbDeletePhoto(urlOrPath) {
   if (error) console.warn('Delete foto gagal:', error.message);
 }
 
-/* ═══════════════════════════════════════════════════
-   HIGH-LEVEL — Foto
-═══════════════════════════════════════════════════ */
-
+/* ── High-level: Foto ── */
 async function sbSyncPhotos(photosArr, onProgress = null) {
   const result = [];
   for (let i = 0; i < photosArr.length; i++) {
     const p = { ...photosArr[i] };
-    // Upload base64 → dapat cloudUrl permanen
     if (!p.cloudUrl && p.src && p.src.startsWith('data:')) {
       try {
         p.cloudUrl = await sbUploadPhoto(p.src, p.id);
@@ -146,13 +115,9 @@ async function sbLoadPhotos() {
   return (meta || []).sort((a, b) => (b.ts || 0) - (a.ts || 0));
 }
 
-/* ═══════════════════════════════════════════════════
-   HIGH-LEVEL — Settings (dengan PIN hash)
-═══════════════════════════════════════════════════ */
-
+/* ── High-level: Settings/Tags/Folders ── */
 async function sbSaveSettings(settings) {
-  // PIN hash aman disimpan ke cloud — bukan PIN aslinya
-  await sbSaveMeta('settings', settings);
+  await sbSaveMeta('settings', settings); // PIN hash aman disimpan
 }
 async function sbLoadSettings() { return sbLoadMeta('settings'); }
 
@@ -167,10 +132,7 @@ async function sbSaveFolders(folders) {
 }
 async function sbLoadFolders() { return sbLoadMeta('folders') || { game: [], her: [] }; }
 
-/* ═══════════════════════════════════════════════════
-   SYNC STATUS
-═══════════════════════════════════════════════════ */
-
+/* ── Sync status ── */
 let _syncStatus = 'idle';
 function sbGetSyncStatus() { return _syncStatus; }
 function _setSyncStatus(s) {
@@ -212,21 +174,16 @@ async function sbFullRestore() {
   }
 }
 
-/* ═══════════════════════════════════════════════════
-   MUSIC
-═══════════════════════════════════════════════════ */
-
+/* ── Music ── */
 async function sbUploadMusic(track) {
   const path = `${sbUserId()}/music/${track.id || uniqueFilename('music')}.mp3`;
   const blob = track.blob instanceof Blob ? track.blob : dataUrlToBlob(track.blob);
   const { error } = await _supabase.storage
-    .from(BUCKET)
-    .upload(path, blob, { contentType: 'audio/mpeg', upsert: true });
+    .from(BUCKET).upload(path, blob, { contentType: 'audio/mpeg', upsert: true });
   if (error) throw new Error('Upload musik gagal: ' + error.message);
   const { data } = _supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
-
 async function sbSyncMusicMeta(tracks) {
   await sbSaveMeta('music', tracks.map(({ blob: _, ...t }) => t));
 }
