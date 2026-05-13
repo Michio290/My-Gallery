@@ -1226,7 +1226,7 @@ function stopSlideshow() {
 function ssShow() {
   clearTimeout(ssTimer);
   const p = photos[ssIdx];
-  document.getElementById('ss-img').src = p.src;
+  document.getElementById('ss-img').src = p.src || p.cloudUrl || '';
   document.getElementById('ss-caption').textContent = p.caption || p.name.replace(/\.[^.]+$/, '');
   // progress bar
   const bar = document.getElementById('ss-bar');
@@ -1429,7 +1429,10 @@ function closeSecretNote() {
 ══════════════════════════════════════════════════════ */
 // Hooked into unlockApp flow — after gallery renders, auto-start if >2 photos
 function maybeAutoSlideshow() {
-  if (photos.length >= 2) {
+  // Hanya auto-start jika ada foto dengan src lokal
+  // Mencegah layar hitam saat foto hanya punya cloudUrl (restore dari cloud)
+  const hasLocalSrc = photos.some(p => p.src && p.src.startsWith('data:'));
+  if (photos.length >= 2 && hasLocalSrc) {
     setTimeout(() => {
       toast('▶ Auto slideshow dimulai… 🎬');
       setTimeout(startSlideshow, 1200);
