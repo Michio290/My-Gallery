@@ -71,20 +71,17 @@ function genId() {
   // Migrasi PIN plain-text lama → hash (sekali saja)
   await migratePinToHash();
 
-  // Jika sudah ada PIN lokal, langsung set identitas cloud dari PIN hash
+  // Jika sudah ada PIN di lokal, set identitas cloud langsung
   if (settings.pin) {
     sbSetUserFromPin(settings.pin);
-  }
-
-  // Jika belum ada PIN (perangkat baru), coba ambil dari cloud dulu
-  if (!settings.pin) {
-    // Coba load settings dari folder "shared" sementara (pakai PIN yang baru di-set)
-    // Tapi kita belum tahu PIN-nya — tampilkan setup dulu
-    showFirstRunPinSetup();
+    await _continueInit();
     return;
   }
 
-  await _continueInit();
+  // Belum ada PIN lokal — ini perangkat baru
+  // Coba ambil PIN dari cloud menggunakan session Supabase sementara
+  // Tidak bisa tanpa PIN → tampilkan setup
+  showFirstRunPinSetup();
 })();
 
 // Lanjutan init — dipanggil setelah PIN dipastikan ada
@@ -120,7 +117,7 @@ async function _continueInit() {
     }
   } catch(e) { /* ignore */ }
 
-  // ── CLOUD SYNC: set identitas dari PIN hash, lalu init ──
+  // ── CLOUD SYNC: set identitas dari PIN, lalu init ──
   if (settings.pin) sbSetUserFromPin(settings.pin);
   initCloudSync().catch(e => console.warn('[Cloud] Init gagal:', e));
 }
@@ -252,7 +249,7 @@ async function confirmFirstRunPin() {
   if (p1 !== p2)             { errEl.textContent = '❌ PIN tidak cocok, coba lagi'; return; }
   settings.pin = await hashPin(p1);
   saveCfg();
-  // Set identitas cloud dari PIN yang baru dibuat
+  // Set identitas cloud dari PIN baru
   sbSetUserFromPin(settings.pin);
   // Lanjutkan inisialisasi normal
   await _continueInit();
@@ -5159,32 +5156,44 @@ async function downloadScrapbook() {
 
 async function initCloudSync() {
   try {
-    await sbEnsureAuth(); // validasi PIN sudah di-set
+    await sbEnsureAuth(); // cek uid sudah di-set
     cloudSyncEnabled = true;
 
-    // Restore semua data dari cloud jika lokal kosong (perangkat baru)
+    // Restore semua data dari cloud jika lokal kosong (perangkat baru / fresh install)
+    const localEmpty = photos.length === 0;
     const cloudPhotos = await sbLoadPhotos();
-    if (cloudPhotos && cloudPhotos.length > 0 && photos.length === 0) {
-      console.log('[Cloud] Restore foto dari cloud:', cloudPhotos.length, 'foto');
+
+    if (cloudPhotos && cloudPhotos.length > 0 && localEmpty) {
+      console.log('[Cloud] Restore dari cloud:', cloudPhotos.length, 'foto');
+
+      // Restore foto
       photos = cloudPhotos;
-      // Restore folder, tags juga
+      await dbSavePhotos(photos);
+
+      // Restore folder
       try {
-        const cloudFolders = await sbLoadFolders();
-        if (cloudFolders) { folderPhotos = cloudFolders; await dbSaveFolders(folderPhotos); }
-        const cloudTags = await sbLoadTags();
-        if (cloudTags?.length) { allTags = cloudTags; await dbSaveTags(allTags); }
-        const cloudSettings = await sbLoadSettings();
-        if (cloudSettings) {
-          // Pertahankan PIN lokal, merge sisa settings dari cloud
+        const cf = await sbLoadFolders();
+        if (cf) { folderPhotos = cf; await dbSaveFolders(folderPhotos); }
+      } catch(e2) { console.warn('[Cloud] Restore folder gagal:', e2.message); }
+
+      // Restore tags
+      try {
+        const ct = await sbLoadTags();
+        if (ct?.length) { allTags = ct; await dbSaveTags(allTags); }
+      } catch(e2) { console.warn('[Cloud] Restore tags gagal:', e2.message); }
+
+      // Restore settings (pertahankan PIN lokal)
+      try {
+        const cs = await sbLoadSettings();
+        if (cs) {
           const localPin = settings.pin;
-          settings = Object.assign({}, DEFAULT_SETTINGS, cloudSettings, { pin: localPin });
+          settings = Object.assign({}, DEFAULT_SETTINGS, cs, { pin: localPin });
           await dbSaveConfig('settings', settings);
           applyTheme(settings.theme, settings.themeLight);
           applySettingsToUI();
         }
-      } catch(e2) { console.warn('[Cloud] Restore partial gagal:', e2.message); }
+      } catch(e2) { console.warn('[Cloud] Restore settings gagal:', e2.message); }
 
-      await dbSavePhotos(photos);
       render();
       updateStats();
       toast('☁️ Data berhasil dipulihkan dari cloud!');
