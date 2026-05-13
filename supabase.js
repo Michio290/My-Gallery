@@ -1,61 +1,55 @@
 /* ═══════════════════════════════════════════════════
-   LOVE GALLERY — supabase.js
-   Cloud sync via Supabase Storage + Auth
-   Bucket: lovegallery (sudah dibuat di dashboard)
+   LOVE GALLERY — supabase.js  v2
+   Cloud sync via Supabase Storage (tanpa Auth)
+   
+   ✅ Identitas user = PIN hash (sama di semua perangkat)
+   ✅ Tidak pakai anonymous session (yang berbeda tiap HP)
+   ✅ Data tersimpan di path: {pinHash[:16]}/...
 ═══════════════════════════════════════════════════ */
 
 const SUPABASE_URL = 'https://kwafswyrxejfckpdpgbq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_RMHNH8bsvwnt7MeV1x9Vmg_5Wch6RhM';
-const BUCKET       = 'love-gallery';   // nama bucket kamu di Supabase Storage
+const BUCKET       = 'love-gallery';
 
 /* ── Init Supabase client (via CDN UMD) ───────────── */
-// Pastikan index.html sudah load script CDN sebelum file ini:
-// <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ═══════════════════════════════════════════════════
-   AUTH — Anonymous / Email OTP
-   Galeri ini pakai anonymous auth agar tidak perlu
-   daftar email. Session tersimpan di localStorage.
+   IDENTITAS USER — Berbasis PIN Hash
+   
+   Ganti anonymous auth dengan ID tetap yang di-derive
+   dari PIN hash. Hasilnya sama di semua perangkat
+   selama PIN-nya sama.
+   
+   Path format: {uid16}/photos/{filename}
+   uid16 = 16 karakter pertama dari SHA-256(PIN)
 ═══════════════════════════════════════════════════ */
 
-let _currentUser = null;
+let _cachedUid = null;
 
 /**
- * Pastikan user sudah punya session.
- * Pakai Anonymous Sign-In — user otomatis dapat user_id unik.
+ * Set user ID dari PIN hash — dipanggil setelah PIN tersedia.
+ * @param {string} pinHash - SHA-256 hex dari PIN (64 karakter)
  */
-async function sbEnsureAuth() {
-  if (_currentUser) return _currentUser;
-
-  // Cek session yang sudah ada
-  const { data: { session } } = await _supabase.auth.getSession();
-  if (session?.user) {
-    _currentUser = session.user;
-    return _currentUser;
-  }
-
-  // Buat anonymous session baru
-  const { data, error } = await _supabase.auth.signInAnonymously();
-  if (error) throw new Error('Auth gagal: ' + error.message);
-  _currentUser = data.user;
-  return _currentUser;
+function sbSetUserFromPin(pinHash) {
+  _cachedUid = pinHash.slice(0, 16);
+  console.log('[Supabase] User ID set dari PIN hash:', _cachedUid);
 }
 
-/**
- * Ambil user_id (dipakai sebagai prefix path di storage).
- * Path format: {user_id}/photos/{filename}
- */
-async function sbUserId() {
-  const user = await sbEnsureAuth();
-  return user.id;
+function sbUserId() {
+  if (!_cachedUid) throw new Error('sbSetUserFromPin() belum dipanggil.');
+  return _cachedUid;
+}
+
+async function sbEnsureAuth() {
+  if (!_cachedUid) throw new Error('PIN belum di-set. Panggil sbSetUserFromPin() dulu.');
+  return { id: _cachedUid };
 }
 
 /* ═══════════════════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════════════════ */
 
-/** Base64 data URL → Blob */
 function dataUrlToBlob(dataUrl) {
   const [header, b64] = dataUrl.split(',');
   const mime  = header.match(/:(.*?);/)[1];
@@ -65,31 +59,21 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([arr], { type: mime });
 }
 
-/** Ekstensi dari mime type */
 function mimeToExt(mime) {
   const map = { 'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif' };
   return map[mime] || 'jpg';
 }
 
-/** Buat nama file unik */
 function uniqueFilename(prefix = 'photo') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
 }
 
 /* ═══════════════════════════════════════════════════
    STORAGE — FOTO
-   Upload satu foto (base64 data URL) ke Supabase Storage.
-   Return: public URL foto.
 ═══════════════════════════════════════════════════ */
 
-/**
- * Upload foto ke Supabase Storage.
- * @param {string} dataUrl  - base64 data URL (dari canvas / FileReader)
- * @param {string} filename - (opsional) nama file tanpa ekstensi
- * @returns {Promise<string>} public URL
- */
 async function sbUploadPhoto(dataUrl, filename = null) {
-  const uid  = await sbUserId();
+  const uid  = sbUserId();
   const blob = dataUrlToBlob(dataUrl);
   const ext  = mimeToExt(blob.type);
   const name = filename || uniqueFilename('photo');
@@ -101,39 +85,27 @@ async function sbUploadPhoto(dataUrl, filename = null) {
 
   if (error) throw new Error('Upload foto gagal: ' + error.message);
 
-  // Ambil public URL
   const { data } = _supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
 
-/**
- * Hapus foto dari Supabase Storage berdasarkan public URL atau path.
- * @param {string} urlOrPath - public URL atau path relatif di bucket
- */
 async function sbDeletePhoto(urlOrPath) {
-  const uid  = await sbUserId();
-  let   path = urlOrPath;
-
-  // Jika diberikan full URL, ekstrak path-nya
+  let path = urlOrPath;
   if (urlOrPath.startsWith('http')) {
     const marker = `/object/public/${BUCKET}/`;
     const idx    = urlOrPath.indexOf(marker);
     if (idx !== -1) path = urlOrPath.slice(idx + marker.length);
   }
-
   const { error } = await _supabase.storage.from(BUCKET).remove([path]);
   if (error) console.warn('Delete foto gagal:', error.message);
 }
 
 /* ═══════════════════════════════════════════════════
    STORAGE — METADATA (JSON)
-   Metadata (foto list, settings, tags) disimpan
-   sebagai JSON file di Storage bucket.
-   Path: {user_id}/meta/{filename}.json
 ═══════════════════════════════════════════════════ */
 
 async function sbSaveMeta(name, data) {
-  const uid  = await sbUserId();
+  const uid  = sbUserId();
   const path = `${uid}/meta/${name}.json`;
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
 
@@ -145,12 +117,11 @@ async function sbSaveMeta(name, data) {
 }
 
 async function sbLoadMeta(name) {
-  const uid  = await sbUserId();
+  const uid  = sbUserId();
   const path = `${uid}/meta/${name}.json`;
 
   const { data, error } = await _supabase.storage.from(BUCKET).download(path);
   if (error) {
-    // File belum ada — kembalikan null
     if (error.message?.includes('not found') || error.statusCode === 404) return null;
     throw new Error(`Load meta "${name}" gagal: ` + error.message);
   }
@@ -162,20 +133,12 @@ async function sbLoadMeta(name) {
    HIGH-LEVEL API — Foto
 ═══════════════════════════════════════════════════ */
 
-/**
- * Simpan semua foto ke cloud.
- * Foto yang sudah punya cloudUrl di-skip upload-nya.
- * @param {Array} photosArr - array foto dari state lokal
- * @param {Function} onProgress - (current, total) callback opsional
- */
 async function sbSyncPhotos(photosArr, onProgress = null) {
-  await sbEnsureAuth();
   const result = [];
 
   for (let i = 0; i < photosArr.length; i++) {
     const p = { ...photosArr[i] };
 
-    // Jika sudah ada cloudUrl, skip upload binary
     if (!p.cloudUrl && p.src && p.src.startsWith('data:')) {
       try {
         p.cloudUrl = await sbUploadPhoto(p.src, p.id);
@@ -185,21 +148,15 @@ async function sbSyncPhotos(photosArr, onProgress = null) {
       }
     }
 
-    // Simpan tanpa base64 src (hemat bandwidth)
     const { src: _omitSrc, ...meta } = p;
     result.push({ ...meta, hasSrc: !!p.src });
     if (onProgress) onProgress(i + 1, photosArr.length);
   }
 
-  // Simpan metadata (tanpa base64)
   await sbSaveMeta('photos', result);
   return result;
 }
 
-/**
- * Load daftar foto dari cloud.
- * cloudUrl diisi dari Supabase; src kosong (load on-demand).
- */
 async function sbLoadPhotos() {
   const meta = await sbLoadMeta('photos');
   return (meta || []).sort((a, b) => (b.ts || 0) - (a.ts || 0));
@@ -210,7 +167,7 @@ async function sbLoadPhotos() {
 ═══════════════════════════════════════════════════ */
 
 async function sbSaveSettings(settings) {
-  // PIN hash (bukan PIN asli) aman disimpan ke cloud untuk sinkronisasi antar perangkat
+  // PIN hash (bukan PIN asli) aman disimpan untuk restore antar perangkat
   await sbSaveMeta('settings', settings);
 }
 async function sbLoadSettings() { return sbLoadMeta('settings'); }
@@ -219,7 +176,6 @@ async function sbSaveTags(tags)    { await sbSaveMeta('tags', tags); }
 async function sbLoadTags()        { return sbLoadMeta('tags') || []; }
 
 async function sbSaveFolders(folders) {
-  // Strip base64 src sebelum simpan ke cloud
   const clean = {};
   for (const [key, arr] of Object.entries(folders)) {
     clean[key] = arr.map(({ src: _, ...p }) => p);
@@ -229,18 +185,14 @@ async function sbSaveFolders(folders) {
 async function sbLoadFolders() { return sbLoadMeta('folders') || { game: [], her: [] }; }
 
 /* ═══════════════════════════════════════════════════
-   SYNC STATUS — helper UI
+   SYNC STATUS
 ═══════════════════════════════════════════════════ */
 
-let _syncStatus = 'idle'; // 'idle' | 'syncing' | 'done' | 'error'
+let _syncStatus = 'idle';
 
-function sbGetSyncStatus()          { return _syncStatus; }
-function _setSyncStatus(s)          { _syncStatus = s; document.dispatchEvent(new CustomEvent('sb-sync', { detail: s })); }
+function sbGetSyncStatus()  { return _syncStatus; }
+function _setSyncStatus(s)  { _syncStatus = s; document.dispatchEvent(new CustomEvent('sb-sync', { detail: s })); }
 
-/**
- * Full sync: upload semua data lokal ke Supabase.
- * Panggil ini setelah user login atau saat buka settings.
- */
 async function sbFullSync({ photos, settings, tags, folderPhotos, onProgress } = {}) {
   _setSyncStatus('syncing');
   try {
@@ -260,10 +212,6 @@ async function sbFullSync({ photos, settings, tags, folderPhotos, onProgress } =
   }
 }
 
-/**
- * Full restore: load semua data dari Supabase ke lokal.
- * Gunakan saat pertama kali login di perangkat baru.
- */
 async function sbFullRestore() {
   _setSyncStatus('syncing');
   try {
@@ -284,11 +232,10 @@ async function sbFullRestore() {
 
 /* ═══════════════════════════════════════════════════
    MUSIC — Upload / Load
-   Musik lebih besar; hanya upload kalau user request.
 ═══════════════════════════════════════════════════ */
 
 async function sbUploadMusic(track) {
-  const uid  = await sbUserId();
+  const uid  = sbUserId();
   const path = `${uid}/music/${track.id || uniqueFilename('music')}.mp3`;
   const blob = track.blob instanceof Blob ? track.blob : dataUrlToBlob(track.blob);
 

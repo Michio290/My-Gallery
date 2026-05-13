@@ -71,26 +71,17 @@ function genId() {
   // Migrasi PIN plain-text lama → hash (sekali saja)
   await migratePinToHash();
 
-  // Jika belum ada PIN (perangkat baru), coba ambil dari cloud dulu
-  if (!settings.pin) {
-    try {
-      await sbEnsureAuth();
-      const cloudSettings = await sbLoadSettings();
-      if (cloudSettings?.pin) {
-        // Ditemukan PIN hash di cloud — pakai langsung, tidak perlu buat PIN baru
-        settings = Object.assign({}, DEFAULT_SETTINGS, cloudSettings);
-        await dbSaveConfig('settings', settings);
-        console.log('[Cloud] PIN berhasil dipulihkan dari cloud ✅');
-      }
-    } catch(e) {
-      console.warn('[Cloud] Gagal ambil PIN dari cloud:', e.message);
-    }
+  // Jika sudah ada PIN lokal, langsung set identitas cloud dari PIN hash
+  if (settings.pin) {
+    sbSetUserFromPin(settings.pin);
   }
 
-  // Jika masih tidak ada PIN (benar-benar pertama kali, belum pernah buat PIN di mana pun)
+  // Jika belum ada PIN (perangkat baru), coba ambil dari cloud dulu
   if (!settings.pin) {
+    // Coba load settings dari folder "shared" sementara (pakai PIN yang baru di-set)
+    // Tapi kita belum tahu PIN-nya — tampilkan setup dulu
     showFirstRunPinSetup();
-    return; // jangan lanjut init sampai PIN dibuat
+    return;
   }
 
   await _continueInit();
@@ -129,7 +120,8 @@ async function _continueInit() {
     }
   } catch(e) { /* ignore */ }
 
-  // ── CLOUD SYNC: init di background ──
+  // ── CLOUD SYNC: set identitas dari PIN hash, lalu init ──
+  if (settings.pin) sbSetUserFromPin(settings.pin);
   initCloudSync().catch(e => console.warn('[Cloud] Init gagal:', e));
 }
 
@@ -260,14 +252,8 @@ async function confirmFirstRunPin() {
   if (p1 !== p2)             { errEl.textContent = '❌ PIN tidak cocok, coba lagi'; return; }
   settings.pin = await hashPin(p1);
   saveCfg();
-  // Langsung sync PIN ke cloud agar perangkat lain bisa pakai PIN yang sama
-  try {
-    await sbEnsureAuth();
-    await sbSaveSettings(settings);
-    console.log('[Cloud] PIN berhasil disync ke cloud ✅');
-  } catch(e) {
-    console.warn('[Cloud] Gagal sync PIN ke cloud:', e.message);
-  }
+  // Set identitas cloud dari PIN yang baru dibuat
+  sbSetUserFromPin(settings.pin);
   // Lanjutkan inisialisasi normal
   await _continueInit();
 }
@@ -5173,21 +5159,39 @@ async function downloadScrapbook() {
 
 async function initCloudSync() {
   try {
-    await sbEnsureAuth();
+    await sbEnsureAuth(); // validasi PIN sudah di-set
     cloudSyncEnabled = true;
 
-    // Coba restore foto dari cloud jika lokal kosong
+    // Restore semua data dari cloud jika lokal kosong (perangkat baru)
     const cloudPhotos = await sbLoadPhotos();
     if (cloudPhotos && cloudPhotos.length > 0 && photos.length === 0) {
-      console.log('[Cloud] Restore dari cloud:', cloudPhotos.length, 'foto');
+      console.log('[Cloud] Restore foto dari cloud:', cloudPhotos.length, 'foto');
       photos = cloudPhotos;
+      // Restore folder, tags juga
+      try {
+        const cloudFolders = await sbLoadFolders();
+        if (cloudFolders) { folderPhotos = cloudFolders; await dbSaveFolders(folderPhotos); }
+        const cloudTags = await sbLoadTags();
+        if (cloudTags?.length) { allTags = cloudTags; await dbSaveTags(allTags); }
+        const cloudSettings = await sbLoadSettings();
+        if (cloudSettings) {
+          // Pertahankan PIN lokal, merge sisa settings dari cloud
+          const localPin = settings.pin;
+          settings = Object.assign({}, DEFAULT_SETTINGS, cloudSettings, { pin: localPin });
+          await dbSaveConfig('settings', settings);
+          applyTheme(settings.theme, settings.themeLight);
+          applySettingsToUI();
+        }
+      } catch(e2) { console.warn('[Cloud] Restore partial gagal:', e2.message); }
+
+      await dbSavePhotos(photos);
       render();
       updateStats();
       toast('☁️ Data berhasil dipulihkan dari cloud!');
     }
 
     showCloudBadge('✅ Cloud aktif');
-    console.log('[Supabase] Auth OK, cloud sync aktif ✅');
+    console.log('[Supabase] Cloud sync aktif ✅');
   } catch(e) {
     console.warn('[Cloud] Tidak tersambung:', e.message);
     showCloudBadge('📴 Offline');
