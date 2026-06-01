@@ -3506,7 +3506,7 @@ function renderScrapPickGrid() {
     return `<div class="scrap-pick-item ${sel ? 'picked' : ''}"
                  onclick="toggleScrapPhoto('${p.id}')"
                  title="${escHtml(p.caption || p.name)}">
-      <img src="${p.src}" alt="" loading="lazy"/>
+      <img src="${p.src || p.cloudUrl || ''}" alt="" loading="lazy"/>
       ${sel ? `<div class="scrap-pick-num">${num}</div>` : ''}
     </div>`;
   }).join('');
@@ -4234,7 +4234,7 @@ async function renderScrapbook() {
   if (wrap) wrap.classList.add('loading');
 
   try {
-    const imgs = await Promise.all(scrapSelected.map(p => loadImg(p.src)));
+    const imgs = await Promise.all(scrapSelected.map(p => loadImg(p.src || p.cloudUrl || '')));
     const canvas = document.getElementById('scrap-canvas');
     const ctx    = canvas.getContext('2d');
     const W = 1080, H = 1080;
@@ -5188,7 +5188,6 @@ async function initCloudSync() {
           cloudPhotos.forEach(cp => {
             const local = photos.find(p => String(p.id) === String(cp.id));
             if (local) {
-              // Update cloudUrl dari cloud, pertahankan src lokal jika ada
               local.cloudUrl = cp.cloudUrl || local.cloudUrl;
             } else {
               photos.push(cp);
@@ -5220,10 +5219,15 @@ async function initCloudSync() {
           }
         } catch(e2) {}
 
+        // ── Fetch cloudUrl ke src lokal agar foto tampil di grid ──
+        // Jalankan di background, render dulu pakai cloudUrl
         render();
         updateStats();
         updateFolderCounts();
         if (photos.length === 0) toast('☁️ Data berhasil dipulihkan dari cloud!');
+
+        // Background fetch: konversi cloudUrl ke base64 src lokal
+        _fetchCloudSrcs();
       }
     }
 
@@ -5250,6 +5254,40 @@ function showCloudBadge(text) {
     if (offlineBadge?.parentNode) offlineBadge.parentNode.insertBefore(badge, offlineBadge.nextSibling);
   }
   badge.textContent = text;
+}
+
+/* ── Fetch cloudUrl → base64 src lokal (background, non-blocking) ── */
+async function _fetchCloudSrcs() {
+  const needFetch = photos.filter(p => !p.src && p.cloudUrl);
+  if (!needFetch.length) return;
+  console.log(`[Cloud] Fetching ${needFetch.length} foto dari cloud ke lokal...`);
+  showCloudBadge(`☁️ Memuat ${needFetch.length} foto...`);
+  let done = 0;
+  for (const p of needFetch) {
+    try {
+      const res  = await fetch(p.cloudUrl);
+      const blob = await res.blob();
+      const b64  = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+      p.src = b64;
+      // Simpan ke IndexedDB secara berkala
+      done++;
+      if (done % 5 === 0 || done === needFetch.length) {
+        await dbSavePhotos(photos).catch(() => {});
+        render(); // refresh grid dengan foto yang sudah ada srcnya
+      }
+    } catch(e) {
+      console.warn('[Cloud] Gagal fetch foto:', p.id, e.message);
+    }
+  }
+  await dbSavePhotos(photos).catch(() => {});
+  render();
+  showCloudBadge('✅ Cloud aktif');
+  toast(`✅ ${done} foto berhasil dimuat dari cloud!`);
+  console.log('[Cloud] Fetch selesai ✅');
 }
 
 async function cloudSync() {
