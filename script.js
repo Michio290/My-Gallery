@@ -400,8 +400,10 @@ function showPinError(msg) {
   void el.offsetWidth; // reflow
   el.classList.add('shake');
 }
+
 function clearPinError() {
-  document.getElementById('pin-error').textContent = '';
+  const el = document.getElementById('pin-error');
+  if (el) el.textContent = '';
 }
 
 function unlockApp() {
