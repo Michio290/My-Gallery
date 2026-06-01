@@ -1660,7 +1660,7 @@ function renderFolderGrid() {
     const inMain = photos.some(mp => mp.id === p.id);
     return `
     <div class="folder-lb-item">
-      <img src="${p.src}" alt=""/>
+      <img src="${p.src || p.cloudUrl || ''}" alt=""/>
       <button class="flb-del" onclick="deleteFolderPhoto(${i})" title="Hapus">🗑</button>
       ${!inMain ? `<button class="flb-sync" onclick="syncFolderPhotoToMain(${i})" title="Tambah ke Galeri Utama">＋</button>` : `<span class="flb-synced" title="Sudah di galeri">✓</span>`}
     </div>`;
@@ -2478,7 +2478,7 @@ function renderJourney(sorted) {
 
   el.innerHTML = `
     <div class="journey-card">
-      <img src="${first.src}" class="journey-thumb" alt=""/>
+      <img src="${first.src || first.cloudUrl || ''}" class="journey-thumb" alt=""/>
       <div class="journey-info">
         <div class="journey-tag">📸 Foto Pertama</div>
         <div class="journey-date">${fmtDateLong(new Date(first.ts))}</div>
@@ -2491,7 +2491,7 @@ function renderJourney(sorted) {
       <div class="journey-line"></div>
     </div>
     <div class="journey-card">
-      <img src="${last.src}" class="journey-thumb" alt=""/>
+      <img src="${last.src || last.cloudUrl || ''}" class="journey-thumb" alt=""/>
       <div class="journey-info">
         <div class="journey-tag">🌟 Foto Terbaru</div>
         <div class="journey-date">${fmtDateLong(new Date(last.ts))}</div>
@@ -3182,7 +3182,7 @@ function renderTimeline() {
     const thumbs = grp.slice(0, 6).map((p, i) => {
       const realIdx = photos.indexOf(p);
       return `<div class="tl-thumb" onclick="closeTimeline();openLb(${realIdx})" title="${escHtml(p.caption || p.name)}">
-        <img src="${p.src}" alt="" loading="lazy"/>
+        <img src="${p.src || p.cloudUrl || ''}" alt="" loading="lazy"/>
         ${p.fav ? '<span class="tl-fav-dot">♥</span>' : ''}
       </div>`;
     }).join('');
@@ -3235,7 +3235,7 @@ function renderOnThisDay() {
   const thumbsEl = document.getElementById('otd-thumbs');
   thumbsEl.innerHTML = matches.slice(0, 3).map(p => {
     const realIdx = photos.indexOf(p);
-    return `<img src="${p.src}" alt="" class="otd-thumb" onclick="closeTimeline();openLb(${realIdx})"/>`;
+    return `<img src="${p.src || p.cloudUrl || ''}" alt="" class="otd-thumb" onclick="closeTimeline();openLb(${realIdx})"/>`;
   }).join('');
 }
 
