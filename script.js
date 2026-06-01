@@ -245,12 +245,42 @@ async function confirmFirstRunPin() {
   const errEl = document.getElementById('fr-error');
   if (!/^\d{8}$/.test(p1)) { errEl.textContent = '❌ PIN harus tepat 8 digit angka'; return; }
   if (p1 !== p2)             { errEl.textContent = '❌ PIN tidak cocok, coba lagi'; return; }
+
   settings.pin = await hashPin(p1);
   saveCfg();
-  // Set UID cloud dari PIN baru
   sbSetUserFromPin(settings.pin);
-  // Lanjutkan inisialisasi normal
-  await _continueInit();
+
+  // ── Coba restore dari cloud dengan PIN ini ──
+  errEl.textContent = '⏳ Memeriksa data cloud...';
+  errEl.style.color = 'var(--rose)';
+  try {
+    const cloudPhotos = await sbLoadPhotos();
+    if (cloudPhotos && cloudPhotos.length > 0) {
+      photos = cloudPhotos;
+      await dbSavePhotos(photos);
+
+      const cf = await sbLoadFolders().catch(() => null);
+      if (cf) { folderPhotos = cf; await dbSaveFolders(folderPhotos); }
+
+      const ct = await sbLoadTags().catch(() => null);
+      if (ct?.length) { allTags = ct; await dbSaveTags(allTags); }
+
+      const cs = await sbLoadSettings().catch(() => null);
+      if (cs) {
+        const localPin = settings.pin;
+        settings = Object.assign({}, DEFAULT_SETTINGS, cs, { pin: localPin });
+        await dbSaveConfig('settings', settings);
+      }
+      errEl.textContent = `☁️ ${photos.length} foto ditemukan di cloud!`;
+    } else {
+      errEl.textContent = '✅ PIN dibuat! Memulai galeri baru...';
+    }
+  } catch(e) {
+    console.warn('[Cloud] Tidak bisa restore saat setup PIN:', e.message);
+    errEl.textContent = '✅ PIN dibuat!';
+  }
+
+  setTimeout(() => _continueInit(), 1000);
 }
 
 // Cek PIN: bandingkan hash input dengan hash tersimpan
