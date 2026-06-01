@@ -245,42 +245,12 @@ async function confirmFirstRunPin() {
   const errEl = document.getElementById('fr-error');
   if (!/^\d{8}$/.test(p1)) { errEl.textContent = '❌ PIN harus tepat 8 digit angka'; return; }
   if (p1 !== p2)             { errEl.textContent = '❌ PIN tidak cocok, coba lagi'; return; }
-
   settings.pin = await hashPin(p1);
   saveCfg();
+  // Set UID cloud dari PIN baru
   sbSetUserFromPin(settings.pin);
-
-  // ── Coba restore dari cloud dengan PIN ini ──
-  errEl.textContent = '⏳ Memeriksa data cloud...';
-  errEl.style.color = 'var(--rose)';
-  try {
-    const cloudPhotos = await sbLoadPhotos();
-    if (cloudPhotos && cloudPhotos.length > 0) {
-      photos = cloudPhotos;
-      await dbSavePhotos(photos);
-
-      const cf = await sbLoadFolders().catch(() => null);
-      if (cf) { folderPhotos = cf; await dbSaveFolders(folderPhotos); }
-
-      const ct = await sbLoadTags().catch(() => null);
-      if (ct?.length) { allTags = ct; await dbSaveTags(allTags); }
-
-      const cs = await sbLoadSettings().catch(() => null);
-      if (cs) {
-        const localPin = settings.pin;
-        settings = Object.assign({}, DEFAULT_SETTINGS, cs, { pin: localPin });
-        await dbSaveConfig('settings', settings);
-      }
-      errEl.textContent = `☁️ ${photos.length} foto ditemukan di cloud!`;
-    } else {
-      errEl.textContent = '✅ PIN dibuat! Memulai galeri baru...';
-    }
-  } catch(e) {
-    console.warn('[Cloud] Tidak bisa restore saat setup PIN:', e.message);
-    errEl.textContent = '✅ PIN dibuat!';
-  }
-
-  setTimeout(() => _continueInit(), 1000);
+  // Lanjutkan inisialisasi normal
+  await _continueInit();
 }
 
 // Cek PIN: bandingkan hash input dengan hash tersimpan
@@ -400,7 +370,6 @@ function showPinError(msg) {
   void el.offsetWidth; // reflow
   el.classList.add('shake');
 }
-
 function clearPinError() {
   const el = document.getElementById('pin-error');
   if (el) el.textContent = '';
@@ -1331,8 +1300,10 @@ async function submitChangePin() {
   // Simpan PIN baru sebagai hash
   settings.pin = await hashPin(newPin);
   saveCfg();
+  // Update UID cloud agar sync tetap pakai PIN baru
+  sbSetUserFromPin(settings.pin);
   closeChangePin();
-  toast('🔐 PIN berhasil diubah!');
+  toast('🔐 PIN berhasil diubah! Pastikan pacar juga update PIN-nya ya 💕');
 }
 
 // ── Clear all photos ──────────────────
@@ -1342,9 +1313,20 @@ function clearAllPhotos() {
     title: 'Hapus Semua Foto?',
     message: 'SEMUA foto akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.',
     okText: 'Hapus Semua',
-    onOk: () => {
+    onOk: async () => {
       photos = [];
-      savePhotos(); render();
+      folderPhotos = { game: [], her: [] };
+      await savePhotos();
+      await saveFolders();
+      // Hapus juga dari cloud
+      if (cloudSyncEnabled) {
+        try {
+          await sbFullSync({ photos: [], settings, tags: allTags, folderPhotos });
+        } catch(e) { console.warn('[Cloud] Gagal hapus cloud:', e.message); }
+      }
+      render();
+      updateFolderCounts();
+      updatePeekCard();
       document.getElementById('settings-total-desc').textContent = '0 foto tersimpan';
       toast('🗑 Semua foto dihapus');
     }
@@ -1523,7 +1505,7 @@ function buildMoodboard() {
     el.dataset.rot = rot;
 
     const cap = p.caption || p.name.replace(/\.[^.]+$/, '');
-    el.innerHTML = `<img src="${p.src}" alt=""/><div class="mb-cap">${cap}</div>`;
+    el.innerHTML = `<img src="${p.src || p.cloudUrl || ''}" alt=""/><div class="mb-cap">${cap}</div>`;
 
     // Drag support (mouse + touch)
     el.addEventListener('mousedown', mbStartDrag);
@@ -1636,8 +1618,9 @@ function updatePeekCard() {
   }
   const latest = herPhotos[0];
   if (dateEl) dateEl.textContent = fmtShortDate(latest.ts);
-  if (imgEl && latest.src) {
-    imgEl.innerHTML = `<img src="${latest.src}" alt=""/>`;
+  const imgSrc = latest.src || latest.cloudUrl || '';
+  if (imgEl && imgSrc) {
+    imgEl.innerHTML = `<img src="${imgSrc}" alt=""/>`;
   }
 }
 
