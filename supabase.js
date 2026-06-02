@@ -140,40 +140,6 @@ function _setSyncStatus(s) {
   document.dispatchEvent(new CustomEvent('sb-sync', { detail: s }));
 }
 
-async function sbFullSync({ photos, settings, tags, folderPhotos, onProgress } = {}) {
-  _setSyncStatus('syncing');
-  try {
-    await sbEnsureAuth();
-    const jobs = [];
-    if (photos)       jobs.push(sbSyncPhotos(photos, onProgress));
-    if (settings)     jobs.push(sbSaveSettings(settings));
-    if (tags)         jobs.push(sbSaveTags(tags));
-    if (folderPhotos) jobs.push(sbSaveFolders(folderPhotos));
-    await Promise.all(jobs);
-    _setSyncStatus('done');
-    console.log('[Supabase] Full sync selesai ✅');
-  } catch(e) {
-    _setSyncStatus('error');
-    console.error('[Supabase] Sync gagal:', e);
-    throw e;
-  }
-}
-
-async function sbFullRestore() {
-  _setSyncStatus('syncing');
-  try {
-    await sbEnsureAuth();
-    const [photos, settings, tags, folders] = await Promise.all([
-      sbLoadPhotos(), sbLoadSettings(), sbLoadTags(), sbLoadFolders(),
-    ]);
-    _setSyncStatus('done');
-    return { photos, settings, tags, folderPhotos: folders };
-  } catch(e) {
-    _setSyncStatus('error');
-    throw e;
-  }
-}
-
 /* ── Music ── */
 async function sbUploadMusic(track) {
   const path = `${sbUserId()}/music/${track.id || uniqueFilename('music')}.mp3`;
@@ -188,3 +154,39 @@ async function sbSyncMusicMeta(tracks) {
   await sbSaveMeta('music', tracks.map(({ blob: _, ...t }) => t));
 }
 async function sbLoadMusicMeta() { return sbLoadMeta('music') || []; }
+
+async function sbFullSync({ photos, settings, tags, folderPhotos, music, onProgress } = {}) {
+  _setSyncStatus('syncing');
+  try {
+    await sbEnsureAuth();
+    const jobs = [];
+    if (photos)       jobs.push(sbSyncPhotos(photos, onProgress));
+    if (settings)     jobs.push(sbSaveSettings(settings));
+    if (tags)         jobs.push(sbSaveTags(tags));
+    if (folderPhotos) jobs.push(sbSaveFolders(folderPhotos));
+    if (music)        jobs.push(sbSyncMusicMeta(music));
+    await Promise.all(jobs);
+    _setSyncStatus('done');
+    console.log('[Supabase] Full sync selesai ✅');
+  } catch(e) {
+    _setSyncStatus('error');
+    console.error('[Supabase] Sync gagal:', e);
+    throw e;
+  }
+}
+
+async function sbFullRestore() {
+  _setSyncStatus('syncing');
+  try {
+    await sbEnsureAuth();
+    const [photos, settings, tags, folders, music] = await Promise.all([
+      sbLoadPhotos(), sbLoadSettings(), sbLoadTags(), sbLoadFolders(),
+      sbLoadMusicMeta(),
+    ]);
+    _setSyncStatus('done');
+    return { photos, settings, tags, folderPhotos: folders, music };
+  } catch(e) {
+    _setSyncStatus('error');
+    throw e;
+  }
+}

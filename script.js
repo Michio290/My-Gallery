@@ -2079,7 +2079,19 @@ function addMusicFiles(files) {
       tmp.addEventListener('loadedmetadata', async () => {
         const track = { id, name, blob, duration: tmp.duration, type: file.type };
         await dbSaveMusic(track).catch(() => {});
-        musicTracks.push({ id, name, url, duration: tmp.duration });
+        // Upload ke cloud jika aktif
+        let cloudUrl = null;
+        if (cloudSyncEnabled) {
+          try {
+            cloudUrl = await sbUploadMusic({ id, blob });
+            console.log('[Cloud] Upload lagu OK:', name);
+          } catch(e) {
+            console.warn('[Cloud] Upload lagu gagal:', name, e.message);
+          }
+        }
+        musicTracks.push({ id, name, url, duration: tmp.duration, cloudUrl });
+        // Sync metadata setelah upload
+        if (cloudSyncEnabled) sbSyncMusicMeta(musicTracks).catch(() => {});
         renderMiniPlaylist();
         updateMusicCount();
         if (musicCurrentIdx === -1) playTrack(musicTracks.length - 1);
@@ -5294,7 +5306,7 @@ async function cloudSync() {
   if (!cloudSyncEnabled) return;
   try {
     showCloudBadge('☁️ Menyimpan...');
-    await sbFullSync({ photos, settings, tags: allTags, folderPhotos });
+    await sbFullSync({ photos, settings, tags: allTags, folderPhotos, music: musicTracks });
     showCloudBadge('✅ Tersimpan');
     setTimeout(() => showCloudBadge('☁️ Cloud aktif'), 3000);
   } catch(e) {
@@ -5309,11 +5321,11 @@ async function manualCloudSync() {
     return;
   }
   const info = document.getElementById('cloud-sync-info');
-  if (info) info.textContent = `⏳ Mengupload ${photos.length} foto...`;
+  if (info) info.textContent = `⏳ Mengupload ${photos.length} foto & ${musicTracks.length} lagu...`;
   try {
     showCloudBadge('☁️ Mengupload...');
-    await sbFullSync({ photos, settings, tags: allTags, folderPhotos });
-    toast(`✅ ${photos.length} foto berhasil di-upload ke cloud!`);
+    await sbFullSync({ photos, settings, tags: allTags, folderPhotos, music: musicTracks });
+    toast(`✅ ${photos.length} foto & ${musicTracks.length} lagu berhasil di-upload ke cloud!`);
     if (info) info.textContent = `Terakhir sync: ${new Date().toLocaleTimeString('id')}`;
     showCloudBadge('✅ Tersimpan');
     setTimeout(() => showCloudBadge('☁️ Cloud aktif'), 3000);
@@ -5348,6 +5360,29 @@ async function manualCloudRestore() {
     }
     if (data.tags?.length)    { allTags = data.tags; await dbSaveTags(allTags); }
     if (data.folderPhotos)    { folderPhotos = data.folderPhotos; await dbSaveFolders(folderPhotos); }
+    // Restore musik dari cloud
+    if (data.music?.length) {
+      // Hanya restore metadata (nama, id, durasi) — blob/url diisi ulang dari cloudUrl jika ada
+      const restored = [];
+      for (const t of data.music) {
+        if (!t.cloudUrl) continue;
+        try {
+          const res  = await fetch(t.cloudUrl);
+          const blob = await res.blob();
+          const url  = URL.createObjectURL(blob);
+          await dbSaveMusic({ id: t.id, name: t.name, blob, duration: t.duration, type: blob.type }).catch(() => {});
+          restored.push({ id: t.id, name: t.name, url, duration: t.duration });
+        } catch(e) {
+          console.warn('[Cloud] Gagal restore lagu:', t.name, e.message);
+        }
+      }
+      if (restored.length) {
+        musicTracks = restored;
+        renderMiniPlaylist();
+        updateMusicCount();
+        toast(`🎵 ${restored.length} lagu berhasil dipulihkan dari cloud!`);
+      }
+    }
     render();
     updateStats();
     updateFolderCounts();
@@ -5355,7 +5390,7 @@ async function manualCloudRestore() {
     toast(`☁️ Restore berhasil! ${photos.length} foto dimuat.`);
   } catch(e) {
     toast('❌ Restore gagal: ' + e.message);
-    console.error('[Cloud] Restore error:', e);
+    console.error('[Cloud] Restore error:', e); 
     showCloudBadge('⚠️ Gagal');
   }
 }
