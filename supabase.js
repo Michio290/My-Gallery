@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════════════════════
-   LOVE GALLERY — supabase.js  v3
+   LOVE GALLERY — supabase.js  v3.1
    ✅ Identitas = PIN hash (sama di semua perangkat)
    ✅ Tidak pakai anonymous session
+   ✅ Fix: musik sekarang tersync ke device lain
 ═══════════════════════════════════════════════════ */
 
 const SUPABASE_URL = 'https://kwafswyrxejfckpdpgbq.supabase.co';
@@ -44,6 +45,28 @@ function mimeToExt(mime) {
 
 function uniqueFilename(prefix = 'photo') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+}
+
+/* ── FIX: Resolve sumber audio ke Blob ──────────────────────────────────
+   musicTracks di memory hanya menyimpan ObjectURL (blob:http://...)
+   bukan Blob asli. Fungsi ini mengubah semua format sumber ke Blob nyata.
+────────────────────────────────────────────────────────────────────────── */
+async function _resolveAudioBlob(track) {
+  // Sudah berupa Blob — langsung pakai
+  if (track.blob instanceof Blob) return track.blob;
+
+  // ObjectURL (blob:http://...) — fetch dulu jadi Blob
+  if (track.url && track.url.startsWith('blob:')) {
+    const res = await fetch(track.url);
+    return res.blob();
+  }
+
+  // Data URL (data:audio/...) — konversi ke Blob
+  if (track.blob && typeof track.blob === 'string' && track.blob.startsWith('data:')) {
+    return dataUrlToBlob(track.blob);
+  }
+
+  throw new Error(`Track "${track.name}" tidak punya sumber audio yang bisa diupload.`);
 }
 
 /* ── Storage: Meta JSON ── */
@@ -117,7 +140,7 @@ async function sbLoadPhotos() {
 
 /* ── High-level: Settings/Tags/Folders ── */
 async function sbSaveSettings(settings) {
-  await sbSaveMeta('settings', settings); // PIN hash aman disimpan
+  await sbSaveMeta('settings', settings);
 }
 async function sbLoadSettings() { return sbLoadMeta('settings'); }
 
@@ -141,25 +164,51 @@ function _setSyncStatus(s) {
 }
 
 /* ── Music ── */
+
+/* FIX v3.1:
+   Sebelumnya hanya mendukung track.blob (Blob).
+   Sekarang mendukung semua format:
+     - track.blob  → Blob asli (dari IndexedDB)
+     - track.url   → ObjectURL (blob:http://...) dari memory musicTracks
+     - track.blob  → Data URL string
+*/
 async function sbUploadMusic(track) {
   const path = `${sbUserId()}/music/${track.id || uniqueFilename('music')}.mp3`;
-  const blob = track.blob instanceof Blob ? track.blob : dataUrlToBlob(track.blob);
+
+  let blob;
+  try {
+    blob = await _resolveAudioBlob(track);
+  } catch(e) {
+    throw new Error('Upload musik gagal (tidak ada sumber): ' + e.message);
+  }
+
   const { error } = await _supabase.storage
-    .from(BUCKET).upload(path, blob, { contentType: 'audio/mpeg', upsert: true });
+    .from(BUCKET).upload(path, blob, { contentType: blob.type || 'audio/mpeg', upsert: true });
   if (error) throw new Error('Upload musik gagal: ' + error.message);
   const { data } = _supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
+
 async function sbSyncMusicMeta(tracks) {
   await sbSaveMeta('music', tracks.map(({ blob: _, ...t }) => t));
 }
 
+/* FIX v3.1:
+   Sebelumnya hanya mengecek track.blob untuk upload.
+   musicTracks di script.js hanya punya track.url (ObjectURL),
+   sehingga kondisi `!track.cloudUrl && track.blob` selalu false
+   → musik tidak pernah diupload ke cloud.
+
+   Sekarang: cek track.blob ATAU track.url agar ObjectURL juga diproses.
+*/
 async function sbSyncMusic(tracks) {
   const result = [];
   for (const t of tracks) {
     const track = { ...t };
-    // Upload file audio jika belum ada cloudUrl
-    if (!track.cloudUrl && track.blob) {
+
+    // Upload jika belum ada cloudUrl DAN ada sumber audio (blob atau ObjectURL)
+    const hasSumber = track.blob || (track.url && track.url.startsWith('blob:'));
+    if (!track.cloudUrl && hasSumber) {
       try {
         track.cloudUrl = await sbUploadMusic(track);
         console.log('[Supabase] Upload musik OK:', track.name);
@@ -167,12 +216,15 @@ async function sbSyncMusic(tracks) {
         console.warn('[Supabase] Upload musik gagal:', track.name, e.message);
       }
     }
+
+    // Simpan metadata saja (tanpa blob/url lokal)
     const { blob: _, url: __, ...meta } = track;
     result.push(meta);
   }
   await sbSaveMeta('music', result);
   return result;
 }
+
 async function sbLoadMusicMeta() { return sbLoadMeta('music') || []; }
 
 async function sbFullSync({ photos, settings, tags, folderPhotos, music, onProgress } = {}) {
@@ -184,8 +236,10 @@ async function sbFullSync({ photos, settings, tags, folderPhotos, music, onProgr
     if (settings)     jobs.push(sbSaveSettings(settings));
     if (tags)         jobs.push(sbSaveTags(tags));
     if (folderPhotos) jobs.push(sbSaveFolders(folderPhotos));
-    if (music)        jobs.push(sbSyncMusic(music));
-    await Promise.all(jobs);
+    // Musik dijalankan sendiri (sequential) karena fetch ObjectURL
+    // tidak bisa dijalankan paralel dengan Promise.all yang mungkin banyak
+    const musicPromise = music ? sbSyncMusic(music) : Promise.resolve();
+    await Promise.all([...jobs, musicPromise]);
     _setSyncStatus('done');
     console.log('[Supabase] Full sync selesai ✅');
   } catch(e) {
