@@ -27,11 +27,11 @@ let folderPhotos = { game: [], her: [] };
 let allTags      = [];   // { id, name, color, emoji }
 let activeTagIds = new Set(); // tag-filter yang aktif
 
-// PIN default tidak disimpan di source code.
-// Jika belum ada PIN (first run), user akan dipaksa membuat PIN baru.
-const DEFAULT_PIN      = null; // tidak ada fallback — lihat checkPin() dan firstRunPinSetup()
+// PIN di-hash dengan SHA-256 + salt — PIN asli tidak terlihat di source code.
+// Satu PIN untuk semua perangkat (kamu & pacar).
+const DEFAULT_PIN      = '955023a7b3f4217646d28e0d0ae35cc5ef1c091fab5a48516b209f37ec8046d1';
 const DEFAULT_SETTINGS = {
-  pin:         null,   // diisi saat user pertama kali set PIN
+  pin:         DEFAULT_PIN,   // PIN hash tetap — berlaku di semua device
   autoLock:    5,
   galleryName: 'My Love Gallery',
   quote:       '"Every photo of you is a moment I never want to forget."',
@@ -71,15 +71,15 @@ function genId() {
   // Migrasi PIN plain-text lama → hash (sekali saja)
   await migratePinToHash();
 
-  // Jika sudah ada PIN, set UID cloud dari PIN hash
-  if (settings.pin) {
-    sbSetUserFromPin(settings.pin);
-    await _continueInit();
-    return;
+  // Jika belum ada PIN di IndexedDB (device baru), pakai DEFAULT_PIN otomatis
+  if (!settings.pin) {
+    settings.pin = DEFAULT_PIN;
+    await dbSaveConfig('settings', settings).catch(() => {});
   }
 
-  // Belum ada PIN — perangkat baru, tampilkan setup
-  showFirstRunPinSetup();
+  // Set UID cloud dari PIN hash lalu lanjut init
+  sbSetUserFromPin(settings.pin);
+  await _continueInit();
 })();
 
 // Lanjutan init — dipanggil setelah PIN dipastikan ada
