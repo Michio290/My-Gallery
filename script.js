@@ -5231,6 +5231,36 @@ async function initCloudSync() {
           }
         } catch(e2) {}
 
+        // ── Restore musik dari cloud (background, non-blocking) ──
+        try {
+          const cm = await sbLoadMusicMeta();
+          if (cm?.length) {
+            const existingIds = new Set(musicTracks.map(t => String(t.id)));
+            const toRestore = cm.filter(t => t.cloudUrl && !existingIds.has(String(t.id)));
+            if (toRestore.length) {
+              console.log('[Cloud] Restore musik:', toRestore.length, 'lagu');
+              (async () => {
+                let restored = 0;
+                for (const t of toRestore) {
+                  try {
+                    const res  = await fetch(t.cloudUrl);
+                    const blob = await res.blob();
+                    const url  = URL.createObjectURL(blob);
+                    await dbSaveMusic({ id: t.id, name: t.name, blob, duration: t.duration, type: blob.type }).catch(() => {});
+                    musicTracks.push({ id: t.id, name: t.name, url, duration: t.duration });
+                    restored++;
+                    renderMiniPlaylist();
+                    updateMusicCount();
+                  } catch(e3) {
+                    console.warn('[Cloud] Gagal restore lagu:', t.name, e3.message);
+                  }
+                }
+                if (restored) toast(`🎵 ${restored} lagu berhasil dipulihkan dari cloud!`);
+              })();
+            }
+          }
+        } catch(e2) { console.warn('[Cloud] Restore musik gagal:', e2); }
+
         // ── Fetch cloudUrl ke src lokal agar foto tampil di grid ──
         // Jalankan di background, render dulu pakai cloudUrl
         render();

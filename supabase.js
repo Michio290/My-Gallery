@@ -153,6 +153,26 @@ async function sbUploadMusic(track) {
 async function sbSyncMusicMeta(tracks) {
   await sbSaveMeta('music', tracks.map(({ blob: _, ...t }) => t));
 }
+
+async function sbSyncMusic(tracks) {
+  const result = [];
+  for (const t of tracks) {
+    const track = { ...t };
+    // Upload file audio jika belum ada cloudUrl
+    if (!track.cloudUrl && track.blob) {
+      try {
+        track.cloudUrl = await sbUploadMusic(track);
+        console.log('[Supabase] Upload musik OK:', track.name);
+      } catch(e) {
+        console.warn('[Supabase] Upload musik gagal:', track.name, e.message);
+      }
+    }
+    const { blob: _, url: __, ...meta } = track;
+    result.push(meta);
+  }
+  await sbSaveMeta('music', result);
+  return result;
+}
 async function sbLoadMusicMeta() { return sbLoadMeta('music') || []; }
 
 async function sbFullSync({ photos, settings, tags, folderPhotos, music, onProgress } = {}) {
@@ -164,7 +184,7 @@ async function sbFullSync({ photos, settings, tags, folderPhotos, music, onProgr
     if (settings)     jobs.push(sbSaveSettings(settings));
     if (tags)         jobs.push(sbSaveTags(tags));
     if (folderPhotos) jobs.push(sbSaveFolders(folderPhotos));
-    if (music)        jobs.push(sbSyncMusicMeta(music));
+    if (music)        jobs.push(sbSyncMusic(music));
     await Promise.all(jobs);
     _setSyncStatus('done');
     console.log('[Supabase] Full sync selesai ✅');
